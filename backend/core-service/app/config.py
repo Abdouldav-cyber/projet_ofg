@@ -1,0 +1,16 @@
+import os
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # Parametres de connexion base de donnees (PostgreSQL 15)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://admin:davou64598258@localhost:5432/djembe_bank")
+    # Connexion au cache Redis pour les taux de change et sessions
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    # Configuration du bus d'evenements Kafka
+    KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    # Securite JWT
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "super-secret-key-djembe-bank-2025")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+settings = Settings()

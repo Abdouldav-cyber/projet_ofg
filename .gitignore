@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+
+# Docker
+.docker_temp/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+extracted_text.txt
+extracted_text_cleaned.txt
+
+# Artifacts & Gemini
+.gemini/
+brain/
+temp_docx/
