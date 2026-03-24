@@ -17,6 +17,7 @@ ENV/
 # OS
 Thumbs.db
 Desktop.ini
+nul
 
 # Logs
 *.log

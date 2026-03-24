@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, TIMESTAMP, JSON, text
+from sqlalchemy import Column, String, TIMESTAMP, JSON, text, Integer, Date, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
@@ -22,25 +22,27 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     email = Column(String(255), unique=True, nullable=False, index=True)
-    phone = Column(String(20), unique=True, nullable=False)
+    phone = Column(String(20))
     password_hash = Column(String(255), nullable=False)
-    full_name = Column(String(100))
-    role = Column(String(50), server_default="user")
-    mfa_enabled = Column(JSON, server_default=text("'false'")) # Stocke true/false ou config MFA
-    status = Column(String(20), server_default="pending_kyc")
+    first_name = Column(String(100))
+    last_name = Column(String(100))
+    role = Column(String(50), server_default="customer")
+    is_active = Column(JSON, server_default=text("'true'"))  # Boolean
+    kyc_status = Column(String(20), server_default="pending")  # pending, approved, rejected
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
-    last_login = Column(TIMESTAMP)
 
 class Account(Base):
     """Gestion des comptes bancaires multi-types."""
     __tablename__ = "accounts"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    account_type = Column(String(50), nullable=False) # personal, business, savings, tontine
-    iban = Column(String(34), unique=True)
-    status = Column(String(20), server_default="active")
-    daily_limit = Column(JSON, server_default=text("'1000000'")) # En devise locale
+    account_type = Column(String(50), nullable=False)  # personal, business, savings, tontine, multi_currency
+    iban = Column(String(34), unique=True)  # IBAN format local adapté
+    bic = Column(String(11))  # BIC/SWIFT code pour virements internationaux
+    status = Column(String(20), server_default="active")  # active, frozen, closed
+    daily_limit = Column(JSON, server_default=text("'1000000'"))  # Limite retrait journalier
+    monthly_limit = Column(JSON, server_default=text("'10000000'"))  # Limite virement mensuel
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
 class AccountBalance(Base):
@@ -84,22 +86,73 @@ class Transaction(Base):
 class Tontine(Base):
     """Modele d'epargne collective (Innovation Djembe)."""
     __tablename__ = "tontines"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     name = Column(String(100), nullable=False)
     admin_id = Column(UUID(as_uuid=True), nullable=False)
     target_amount = Column(JSON, nullable=False)
-    frequency = Column(String(20)) # weekly, monthly
-    status = Column(String(20), server_default="active")
+    base_currency = Column(String(3), server_default="XOF")  # Devise de la tontine
+    frequency = Column(String(20))  # weekly, monthly
+    distribution_method = Column(String(20), server_default="rotating")  # rotating, random, vote
+    status = Column(String(20), server_default="active")  # open, active, completed, cancelled
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
 class TontineMember(Base):
     """Participation des utilisateurs aux tontines."""
     __tablename__ = "tontine_members"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     tontine_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     contribution_amount = Column(JSON, nullable=False)
-    order = Column(JSON, nullable=True) # Position dans le cycle de rotation
+    order = Column(Integer, nullable=True)  # Position dans le cycle de rotation (1, 2, 3...)
     joined_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class TontineCycle(Base):
+    """Cycles de distribution des tontines (tracking historique)."""
+    __tablename__ = "tontine_cycles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    tontine_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    cycle_number = Column(Integer, nullable=False)  # Numéro du cycle (1, 2, 3...)
+    recipient_user_id = Column(UUID(as_uuid=True), nullable=False)  # Bénéficiaire du cycle
+    amount = Column(JSON, nullable=False)  # Montant distribué
+    currency = Column(String(3), nullable=False)
+    disbursement_date = Column(TIMESTAMP)  # Date de distribution effective
+    status = Column(String(20), server_default="pending")  # pending, paid, defaulted
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class SupportTicket(Base):
+    """Tickets de support client."""
+    __tablename__ = "support_tickets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Client concerné
+    assigned_to = Column(UUID(as_uuid=True))  # Agent assigné
+    subject = Column(String(200), nullable=False)
+    description = Column(String(2000))
+    category = Column(String(50))  # account, transaction, kyc, technical, other
+    priority = Column(String(20), server_default="medium")  # low, medium, high, urgent
+    status = Column(String(20), server_default="open")  # open, in_progress, resolved, closed
+    resolution = Column(String(2000))  # Résolution finale
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at = Column(TIMESTAMP, onupdate=text("CURRENT_TIMESTAMP"))
+    resolved_at = Column(TIMESTAMP)
+    closed_at = Column(TIMESTAMP)
+
+
+class ChatMessage(Base):
+    """Messages du chat live support."""
+    __tablename__ = "chat_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    ticket_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Lié au ticket support
+    sender_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Utilisateur ou agent
+    sender_role = Column(String(20), nullable=False)  # customer, support_l1, support_l2, system
+    message = Column(String(5000), nullable=False)
+    message_type = Column(String(20), server_default="text")  # text, image, file, system
+    file_url = Column(String(500))  # URL de pièce jointe (optionnel)
+    is_read = Column(JSON, server_default=text("'false'"))  # Lu par le destinataire
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))

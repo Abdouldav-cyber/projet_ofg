@@ -14,3 +14,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
 settings = Settings()
+
+# Export des constantes pour compatibilité avec le code existant
+JWT_SECRET = settings.JWT_SECRET
+ALGORITHM = settings.ALGORITHM

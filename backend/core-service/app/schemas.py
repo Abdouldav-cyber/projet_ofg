@@ -30,18 +30,23 @@ class TenantResponse(TenantBase):
 class UserCreate(BaseModel):
     """Donnees requises pour la creation d'un utilisateur."""
     email: str = Field(..., example="jean.dupont@example.com")
-    phone: str = Field(..., example="+221770000000")
     password: str = Field(..., example="Securite123!")
-    full_name: str = Field(..., example="Jean Dupont")
+    first_name: str = Field(..., example="Jean")
+    last_name: str = Field(..., example="Dupont")
+    phone: Optional[str] = Field(None, example="+221770000000")
+    role: Optional[str] = Field("user", example="user", description="Role: user, support_l1, support_l2, country_admin, super_admin")
 
 class UserResponse(BaseModel):
     id: UUID4
     email: str
-    phone: str
-    full_name: str
+    phone: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     role: str
-    status: str
+    is_active: bool
+    kyc_status: str
     created_at: datetime
+    tenant_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -57,6 +62,7 @@ class TokenData(BaseModel):
 
 class AccountCreate(BaseModel):
     """Schema de creation de compte."""
+    user_id: Optional[str] = Field(None, example="550e8400-e29b-41d4-a716-446655440000", description="ID de l'utilisateur (admin peut specifier)")
     account_type: str = Field(..., example="personal", description="Type de compte: personal, business, savings, tontine")
     initial_currency: Optional[str] = Field("XOF", example="XOF")
 
@@ -126,6 +132,94 @@ class TontineMemberResponse(BaseModel):
     contribution_amount: float
     order: Optional[int]
     joined_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- SUPPORT TICKETS ---
+
+class SupportTicketCreate(BaseModel):
+    """Schema de creation d'un ticket de support."""
+    subject: str = Field(..., example="Probleme de connexion")
+    description: str = Field(..., example="Je n'arrive pas a acceder a mon compte")
+    priority: Optional[str] = Field("medium", example="medium", description="low, medium, high, urgent")
+    category: Optional[str] = Field("other", example="account", description="account, transaction, kyc, technical, other")
+
+class SupportTicketUpdate(BaseModel):
+    """Schema de mise a jour d'un ticket."""
+    status: Optional[str] = Field(None, description="open, in_progress, resolved, closed")
+    priority: Optional[str] = None
+    assigned_to: Optional[str] = None
+    resolution: Optional[str] = None
+
+class SupportTicketResponse(BaseModel):
+    id: UUID4
+    user_id: UUID4
+    assigned_to: Optional[UUID4] = None
+    subject: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    priority: str
+    status: str
+    resolution: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- USER UPDATE ---
+
+class UserUpdate(BaseModel):
+    """Schema de mise a jour d'un utilisateur."""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class PasswordChange(BaseModel):
+    """Schema pour changer le mot de passe."""
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+class ProfileUpdate(BaseModel):
+    """Schema de mise a jour du profil."""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+
+class TenantUpdate(BaseModel):
+    """Schema de mise a jour d'un tenant."""
+    name: Optional[str] = None
+    regulatory_authority: Optional[str] = None
+    base_currency: Optional[str] = None
+    status: Optional[str] = None
+
+
+# --- CHAT LIVE SUPPORT ---
+
+class ChatMessageCreate(BaseModel):
+    """Schema d'envoi d'un message chat."""
+    ticket_id: UUID4
+    message: str = Field(..., min_length=1, max_length=5000)
+    message_type: Optional[str] = Field("text", description="text, image, file, system")
+    file_url: Optional[str] = None
+
+class ChatMessageResponse(BaseModel):
+    id: UUID4
+    ticket_id: UUID4
+    sender_id: UUID4
+    sender_role: str
+    sender_name: Optional[str] = None
+    message: str
+    message_type: str
+    file_url: Optional[str] = None
+    is_read: bool
+    created_at: datetime
 
     class Config:
         from_attributes = True
