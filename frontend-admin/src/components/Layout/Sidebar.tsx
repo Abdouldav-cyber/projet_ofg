@@ -126,7 +126,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <ListItemIcon
               sx={{
                 minWidth: 38,
-                color: active ? item.color : '#94A3B8',
+                color: item.color,
                 '& svg': {
                   fontSize: 21,
                 },

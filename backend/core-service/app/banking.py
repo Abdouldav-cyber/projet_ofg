@@ -180,7 +180,7 @@ class TransactionSaga:
 
         # Créditer le destinataire
         to_balance = self.db.query(AccountBalance).filter(
-            AccountBalance.account_id=self.to_account_id,
+            AccountBalance.account_id == self.to_account_id,
             AccountBalance.currency == self.currency
         ).with_for_update().first()
 
@@ -227,6 +227,20 @@ class TransactionSaga:
 
         # Publier événement Kafka (async)
         await self._publish_event()
+
+        # Ancrer sur la Blockchain si montant significatif ou international
+        if self.amount >= 500000 or self.transaction_type in ["international", "cross_border"]:
+            from app.blockchain import blockchain_service
+            try:
+                await blockchain_service.anchor_transaction(
+                    transaction_id=str(self.transaction.id),
+                    amount=str(self.amount),
+                    currency=self.currency,
+                    sender=str(self.from_account_id),
+                    receiver=str(self.to_account_id)
+                )
+            except Exception as e:
+                print(f"Erreur ancrage blockchain: {e}")
 
         return self.transaction
 

@@ -96,18 +96,26 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        backgroundColor: '#F3F4F6', // Gris très léger
         padding: 2,
       }}
     >
-      <Card sx={{ maxWidth: 400, width: '100%' }}>
-        <CardContent sx={{ p: 4 }}>
+      <Card 
+        elevation={0}
+        sx={{ 
+          maxWidth: 400, 
+          width: '100%', 
+          borderRadius: 2, 
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', // Ombre subtile propre
+        }}
+      >
+        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography variant="h4" component="h1" gutterBottom fontWeight={600}>
+            <Typography variant="h5" component="h1" gutterBottom fontWeight={700} color="text.primary">
               Djembé Bank
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {mfaRequired ? t('auth.mfaRequired') : 'Interface d\'administration'}
+              {mfaRequired ? t('auth.mfaRequired') : 'Administration Portal'}
             </Typography>
           </Box>
 
@@ -124,9 +132,11 @@ export default function LoginPage() {
                 label={t('auth.email')}
                 type="email"
                 margin="normal"
+                variant="outlined"
                 {...registerLogin('email')}
                 error={!!loginErrors.email}
                 helperText={loginErrors.email?.message}
+                InputProps={{ sx: { bgcolor: 'white' } }}
               />
 
               <TextField
@@ -134,69 +144,90 @@ export default function LoginPage() {
                 label={t('auth.password')}
                 type="password"
                 margin="normal"
+                variant="outlined"
                 {...registerLogin('password')}
                 error={!!loginErrors.password}
                 helperText={loginErrors.password?.message}
+                InputProps={{ sx: { bgcolor: 'white' } }}
               />
 
               <TextField
                 fullWidth
                 label={t('auth.tenantCode')}
                 margin="normal"
+                variant="outlined"
                 placeholder="SN, CI, GH, NG..."
                 {...registerLogin('tenant_code')}
                 error={!!loginErrors.tenant_code}
                 helperText={loginErrors.tenant_code?.message}
+                InputProps={{ sx: { bgcolor: 'white' } }}
               />
 
               <Button
                 fullWidth
                 variant="contained"
+                color="primary" // Couleur simple standard MUI
                 size="large"
                 type="submit"
                 disabled={isLoading}
-                sx={{ mt: 3, mb: 2 }}
+                disableElevation
+                sx={{ 
+                  mt: 3, 
+                  mb: 2, 
+                  py: 1.5,
+                  fontWeight: 'bold',
+                }}
               >
-                {isLoading ? <CircularProgress size={24} /> : t('auth.loginButton')}
+                {isLoading ? <CircularProgress size={24} color="inherit" /> : t('auth.loginButton')}
               </Button>
             </form>
           ) : (
             <form onSubmit={handleSubmitMFA(onSubmitMFA)}>
-              <Typography variant="body2" sx={{ mb: 2 }}>
-                Entrez le code de votre application d'authentification
+              <Typography variant="body2" sx={{ mb: 2, textAlign: 'center' }}>
+                Veuillez saisir le code à 6 chiffres de votre application.
               </Typography>
 
               <TextField
                 fullWidth
-                label={t('auth.mfaCode')}
+                label="Code Sécurité MFA"
                 margin="normal"
-                placeholder="123456"
-                inputProps={{ maxLength: 6 }}
+                variant="outlined"
+                placeholder="000000"
+                inputProps={{ maxLength: 6, style: { textAlign: 'center', letterSpacing: '0.2em' } }}
                 {...registerMFA('code')}
                 error={!!mfaErrors.code}
                 helperText={mfaErrors.code?.message}
+                InputProps={{ sx: { bgcolor: 'white' } }}
               />
 
               <Button
                 fullWidth
                 variant="contained"
+                color="primary"
                 size="large"
                 type="submit"
                 disabled={isLoading}
-                sx={{ mt: 3, mb: 2 }}
+                disableElevation
+                sx={{ 
+                  mt: 3, 
+                  mb: 1, 
+                  py: 1.5,
+                  fontWeight: 'bold',
+                }}
               >
-                {isLoading ? <CircularProgress size={24} /> : 'Vérifier'}
+                {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Vérifier'}
               </Button>
 
               <Button
                 fullWidth
                 variant="text"
+                color="inherit"
                 onClick={() => {
                   setMfaRequired(false)
                   setTempToken('')
                 }}
               >
-                Retour
+                Annuler
               </Button>
             </form>
           )}

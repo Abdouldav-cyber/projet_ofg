@@ -9,10 +9,20 @@ class TenantBase(BaseModel):
     regulatory_authority: Optional[str] = None # Autorité de régulation (ex: BCEAO)
     base_currency: Optional[str] = "XOF" # Devise locale par défaut
 
+class TenantLimits(BaseModel):
+    max_transaction: float = Field(..., example=5000000.0)
+    daily_withdrawal: Optional[float] = None
+    monthly_transfer: Optional[float] = None
+
+class TenantConfig(BaseModel):
+    kyc_provider: str = Field(..., example="onfido")
+    limits: TenantLimits
+
 class TenantCreate(TenantBase):
-    """Schema de creation d'un pays."""
+    """Schema de creation d'un pays avec parametres reglementaires KYC."""
     name: str = Field(..., example="Senegal")
     country_code: str = Field(..., example="SN")
+    config: Optional[TenantConfig] = None
 
 class TenantUpdate(TenantBase):
     name: Optional[str] = None
