@@ -1,0 +1,259 @@
+@startuml MCD - Modele Conceptuel de Donnees - Djembe Bank
+
+skinparam linetype ortho
+skinparam entity {
+    BackgroundColor #F8F9FA
+    BorderColor #2C3E50
+}
+
+title **MCD - Modele Conceptuel de Donnees**\nDjembe Bank - Plateforme Bancaire Multi-Tenant
+
+' ==================== ENTITES ====================
+
+entity "TENANT" as tenant {
+    * **tenant_id** : UUID <<PK>>
+    --
+    * name : VARCHAR(100)
+    * country_code : VARCHAR(3) <<AK>>
+    regulatory_authority : VARCHAR(100)
+    base_currency : VARCHAR(3) = 'XOF'
+    status : VARCHAR(20) = 'active'
+    config : JSONB
+    created_at : TIMESTAMP
+}
+
+entity "USER" as user {
+    * **id** : UUID <<PK>>
+    --
+    * email : VARCHAR(255) <<AK>>
+    phone : VARCHAR(20)
+    * password_hash : VARCHAR(255)
+    first_name : VARCHAR(100)
+    last_name : VARCHAR(100)
+    role : VARCHAR(50) = 'customer'
+    is_active : BOOLEAN = true
+    kyc_status : VARCHAR(20) = 'pending'
+    created_at : TIMESTAMP
+}
+
+entity "ACCOUNT" as account {
+    * **id** : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * account_type : VARCHAR(50)
+    iban : VARCHAR(34) <<AK>>
+    bic : VARCHAR(11)
+    status : VARCHAR(20) = 'active'
+    daily_limit : NUMERIC
+    monthly_limit : NUMERIC
+    created_at : TIMESTAMP
+}
+
+entity "ACCOUNT_BALANCE" as balance {
+    * **id** : UUID <<PK>>
+    --
+    * account_id : UUID <<FK>>
+    * currency : VARCHAR(3)
+    available : NUMERIC = 0
+    pending : NUMERIC = 0
+    last_updated : TIMESTAMP
+}
+
+entity "TRANSACTION" as transaction {
+    * **id** : UUID <<PK>>
+    --
+    from_account_id : UUID <<FK>>
+    to_account_id : UUID <<FK>>
+    * amount : NUMERIC
+    * currency : VARCHAR(3)
+    reference : VARCHAR(140)
+    * transaction_type : VARCHAR(50)
+    status : VARCHAR(20) = 'pending'
+    created_at : TIMESTAMP
+}
+
+entity "LEDGER_ENTRY" as ledger {
+    * **id** : UUID <<PK>>
+    --
+    * account_id : UUID <<FK>>
+    * transaction_id : UUID <<FK>>
+    * entry_type : VARCHAR(10)
+    * amount : NUMERIC
+    * currency : VARCHAR(3)
+    * balance_after : NUMERIC
+    created_at : TIMESTAMP
+}
+
+entity "TONTINE" as tontine {
+    * **id** : UUID <<PK>>
+    --
+    * name : VARCHAR(100)
+    * admin_id : UUID <<FK>>
+    * target_amount : NUMERIC
+    base_currency : VARCHAR(3) = 'XOF'
+    frequency : VARCHAR(20)
+    distribution_method : VARCHAR(20) = 'rotating'
+    status : VARCHAR(20) = 'open'
+    created_at : TIMESTAMP
+}
+
+entity "TONTINE_MEMBER" as member {
+    * **id** : UUID <<PK>>
+    --
+    * tontine_id : UUID <<FK>>
+    * user_id : UUID <<FK>>
+    * contribution_amount : NUMERIC
+    order : INTEGER
+    joined_at : TIMESTAMP
+}
+
+entity "TONTINE_CYCLE" as cycle {
+    * **id** : UUID <<PK>>
+    --
+    * tontine_id : UUID <<FK>>
+    * cycle_number : INTEGER
+    * recipient_user_id : UUID <<FK>>
+    * amount : NUMERIC
+    * currency : VARCHAR(3)
+    disbursement_date : TIMESTAMP
+    status : VARCHAR(20) = 'pending'
+    created_at : TIMESTAMP
+}
+
+entity "KYC_DOCUMENT" as kyc {
+    * **id** : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * document_type : VARCHAR(50)
+    * document_url : VARCHAR(255)
+    status : VARCHAR(20) = 'pending'
+    rejection_reason : VARCHAR(255)
+    submitted_at : TIMESTAMP
+    verified_at : TIMESTAMP
+}
+
+entity "SUPPORT_TICKET" as ticket {
+    * **id** : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    assigned_to : UUID <<FK>>
+    * subject : VARCHAR(200)
+    description : VARCHAR(2000)
+    category : VARCHAR(50)
+    priority : VARCHAR(20) = 'medium'
+    status : VARCHAR(20) = 'open'
+    resolution : VARCHAR(2000)
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+    resolved_at : TIMESTAMP
+}
+
+entity "CHAT_MESSAGE" as chat {
+    * **id** : UUID <<PK>>
+    --
+    * ticket_id : UUID <<FK>>
+    * sender_id : UUID <<FK>>
+    * sender_role : VARCHAR(20)
+    * message : VARCHAR(5000)
+    message_type : VARCHAR(20) = 'text'
+    file_url : VARCHAR(500)
+    is_read : BOOLEAN = false
+    created_at : TIMESTAMP
+}
+
+entity "AUDIT_LOG" as audit {
+    * **log_id** : UUID <<PK>>
+    --
+    timestamp : TIMESTAMP
+    user_id : UUID <<FK>>
+    user_email : VARCHAR(255)
+    user_role : VARCHAR(50)
+    ip_address : INET
+    action : VARCHAR(100)
+    resource_type : VARCHAR(50)
+    resource_id : UUID
+    changes : JSONB
+    metadata : JSONB
+    tenant_id : UUID
+}
+
+' ==================== ASSOCIATIONS ====================
+
+' Un utilisateur possede 0..N comptes
+user ||--o{ account : "possede\n(1,N)"
+
+' Un compte a 1..N soldes (multi-devise)
+account ||--|{ balance : "a\n(1,N)"
+
+' Un compte emet 0..N transactions
+account ||--o{ transaction : "emet\n(0,N)"
+
+' Un compte recoit 0..N transactions
+account ||--o{ transaction : "recoit\n(0,N)"
+
+' Une transaction produit 2 ecritures comptables
+transaction ||--|{ ledger : "produit\n(2)"
+
+' Un compte a des ecritures comptables
+account ||--o{ ledger : "enregistre"
+
+' Un utilisateur cree 0..N tontines (admin)
+user ||--o{ tontine : "administre\n(0,N)"
+
+' Une tontine a 0..N membres
+tontine ||--o{ member : "contient\n(0,N)"
+
+' Un utilisateur participe a 0..N tontines
+user ||--o{ member : "participe\n(0,N)"
+
+' Une tontine a 0..N cycles
+tontine ||--o{ cycle : "planifie\n(0,N)"
+
+' Un utilisateur beneficie de 0..N cycles
+user ||--o{ cycle : "beneficie\n(0,N)"
+
+' Un utilisateur soumet 0..N documents KYC
+user ||--o{ kyc : "soumet\n(0,N)"
+
+' Un utilisateur cree 0..N tickets
+user ||--o{ ticket : "cree\n(0,N)"
+
+' Un agent traite 0..N tickets
+user ||--o{ ticket : "traite\n(0,N)"
+
+' Un ticket contient 0..N messages
+ticket ||--o{ chat : "contient\n(0,N)"
+
+' Un utilisateur envoie 0..N messages
+user ||--o{ chat : "envoie\n(0,N)"
+
+' Un utilisateur genere 0..N logs
+user ||--o{ audit : "genere\n(0,N)"
+
+' ==================== NOTE ====================
+
+note bottom of tenant
+    **Architecture Multi-Tenant:**
+    Chaque tenant (pays) a son
+    propre schema PostgreSQL
+    (tenant_sn, tenant_ci, etc.)
+    isole des autres pays.
+end note
+
+note bottom of ledger
+    **Double-Entree Comptable:**
+    Chaque transaction produit
+    exactement 2 ecritures:
+    1 DEBIT + 1 CREDIT
+    (immutables)
+end note
+
+note bottom of tontine
+    **Innovation Djembe:**
+    Numerisation de l'epargne
+    collective traditionnelle
+    africaine avec distribution
+    automatisee.
+end note
+
+@enduml

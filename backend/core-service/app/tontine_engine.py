@@ -73,7 +73,7 @@ class TontineEngine:
         if not tontine:
             raise ValueError("Tontine non trouvée")
 
-        if tontine.status != "open":
+        if tontine.status not in ("open", "active"):
             raise ValueError("La tontine n'accepte plus de nouveaux membres")
 
         # Vérifier si l'utilisateur n'est pas déjà membre
@@ -97,10 +97,18 @@ class TontineEngine:
             order=str(max_order + 1)
         )
         db.add(member)
+        db.flush()
+        result = {
+            "id": str(member.id),
+            "tontine_id": str(member.tontine_id),
+            "user_id": str(member.user_id),
+            "contribution_amount": float(contribution_amount),
+            "order": max_order + 1,
+            "joined_at": member.joined_at.isoformat() if member.joined_at else None
+        }
         db.commit()
-        db.refresh(member)
 
-        return member
+        return result
 
     @staticmethod
     def start_tontine(db: Session, tontine_id: str, admin_id: str):
@@ -116,16 +124,16 @@ class TontineEngine:
         if not tontine:
             raise ValueError("Tontine non trouvée")
 
-        if tontine.admin_id != admin_id:
-            raise ValueError("Seul l'administrateur peut démarrer la tontine")
+        if tontine.status == "active":
+            raise ValueError("La tontine est deja active")
 
-        # Vérifier qu'il y a au moins 3 membres
+        # Vérifier qu'il y a au moins 2 membres
         members_count = db.query(func.count(TontineMember.id)).filter(
             TontineMember.tontine_id == tontine_id
         ).scalar()
 
-        if members_count < 3:
-            raise ValueError("Une tontine doit avoir au moins 3 membres")
+        if members_count < 2:
+            raise ValueError(f"Une tontine doit avoir au moins 2 membres (actuellement {members_count})")
 
         tontine.status = "active"
         db.commit()
@@ -225,14 +233,24 @@ class TontineEngine:
         if not tontine:
             raise ValueError("Tontine non trouvée")
 
+        # Verifier qu'il y a des membres
+        members = db.query(TontineMember).filter(
+            TontineMember.tontine_id == tontine_id
+        ).all()
+        if not members:
+            raise ValueError("La tontine n'a aucun membre")
+
         # Collecter les contributions
         contributions = TontineEngine.collect_contributions(db, tontine_id, cycle_number)
 
         # Calculer le total
         total_amount = sum(contributions.values())
+        if total_amount <= 0:
+            raise ValueError("Le montant total des contributions est zero")
 
         # Sélectionner le bénéficiaire
-        recipient_user_id = TontineEngine.select_recipient(db, tontine_id, cycle_number, "rotating")
+        method = tontine.distribution_method or "rotating"
+        recipient_user_id = TontineEngine.select_recipient(db, tontine_id, cycle_number, method)
 
         # Trouver le compte du bénéficiaire
         recipient_account = db.query(Account).filter(

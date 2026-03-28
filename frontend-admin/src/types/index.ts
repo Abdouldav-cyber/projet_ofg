@@ -106,7 +106,7 @@ export type TontineFrequency = 'daily' | 'weekly' | 'monthly'
 
 export type DistributionMethod = 'rotating' | 'random' | 'vote'
 
-export type TontineStatus = 'active' | 'completed' | 'cancelled'
+export type TontineStatus = 'open' | 'active' | 'completed' | 'cancelled'
 
 // Types Support
 export interface SupportTicket {

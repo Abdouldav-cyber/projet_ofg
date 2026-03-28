@@ -51,7 +51,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db_with_tenant)):
     db.refresh(db_user)
 
     # Audit Log
-    db.add(AuditLog(user_id=db_user.id, action="REGISTER", resource="users", resource_id=str(db_user.id)))
+    db.add(AuditLog(user_id=db_user.id, action="REGISTER", resource_type="users", resource_id=str(db_user.id)))
     db.commit()
 
     return db_user
@@ -208,7 +208,7 @@ def verify_mfa(code: str, db: Session = Depends(get_db_with_tenant)):
         db.commit()
 
         # Audit log
-        db.add(AuditLog(user_id=user.id, action="MFA_ENABLED", resource="users", resource_id=str(user.id)))
+        db.add(AuditLog(user_id=user.id, action="MFA_ENABLED", resource_type="users", resource_id=str(user.id)))
         db.commit()
 
         return {"status": "success", "message": "MFA activé avec succès"}
@@ -238,7 +238,7 @@ def disable_mfa(password: str, db: Session = Depends(get_db_with_tenant)):
     db.commit()
 
     # Audit log
-    db.add(AuditLog(user_id=user.id, action="MFA_DISABLED", resource="users", resource_id=str(user.id)))
+    db.add(AuditLog(user_id=user.id, action="MFA_DISABLED", resource_type="users", resource_id=str(user.id)))
     db.commit()
 
     return {"status": "success", "message": "MFA désactivé"}
@@ -293,7 +293,7 @@ def create_account(account: AccountCreate, db: Session = Depends(get_db_with_ten
     db.commit()
 
     # Audit log
-    db.add(AuditLog(user_id=None, action="CREATE_ACCOUNT", resource="accounts", resource_id=str(new_account.id)))
+    db.add(AuditLog(user_id=None, action="CREATE_ACCOUNT", resource_type="accounts", resource_id=str(new_account.id)))
     db.commit()
 
     return {
@@ -364,11 +364,13 @@ def list_tontines(db: Session = Depends(get_db_with_tenant)):
     """Liste toutes les tontines du pays actuel."""
     return db.query(Tontine).all()
 
-@router.post("/tontines", response_model=TontineResponse, tags=["Tontine"], summary="Creation de tontine")
+@router.post("/tontines", tags=["Tontine"], summary="Creation de tontine")
 def create_tontine(tontine: TontineCreate, db: Session = Depends(get_db_with_tenant)):
     """Crée un nouveau cercle d'épargne (Tontine)."""
-    # admin_id simulé
-    admin_id = "00000000-0000-0000-0000-000000000000"
+    # Trouver le premier utilisateur admin du tenant comme createur
+    admin_user = db.query(User).filter(User.role.in_(['super_admin', 'country_admin'])).first()
+    admin_id = str(admin_user.id) if admin_user else str(db.query(User).first().id)
+
     db_tontine = Tontine(
         name=tontine.name,
         admin_id=admin_id,
@@ -376,27 +378,94 @@ def create_tontine(tontine: TontineCreate, db: Session = Depends(get_db_with_ten
         frequency=tontine.frequency
     )
     db.add(db_tontine)
-    db.commit()
-    db.refresh(db_tontine)
-    return db_tontine
+    db.flush()
 
-@router.post("/tontines/{tontine_id}/members", response_model=TontineMemberResponse)
+    result = {
+        "id": str(db_tontine.id),
+        "name": db_tontine.name,
+        "admin_id": str(db_tontine.admin_id),
+        "target_amount": float(db_tontine.target_amount),
+        "frequency": db_tontine.frequency,
+        "status": db_tontine.status,
+        "created_at": db_tontine.created_at.isoformat() if db_tontine.created_at else None,
+    }
+
+    db.commit()
+    return result
+
+@router.post("/tontines/{tontine_id}/members", tags=["Tontine"], summary="Ajout de membre")
 def join_tontine(tontine_id: UUID4, member: TontineMemberCreate, db: Session = Depends(get_db_with_tenant)):
     """Ajoute un membre à une tontine existante."""
+    from sqlalchemy import func as sqlfunc
+
+    # Verifier que la tontine existe
+    tontine = db.query(Tontine).filter(Tontine.id == str(tontine_id)).first()
+    if not tontine:
+        raise HTTPException(status_code=404, detail="Tontine introuvable")
+
+    if tontine.status not in ("open", "active"):
+        raise HTTPException(status_code=400, detail="La tontine n'accepte plus de nouveaux membres")
+
+    # Verifier que l'utilisateur existe
+    user = db.query(User).filter(User.id == str(member.user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    # Verifier doublon
+    existing = db.query(TontineMember).filter(
+        TontineMember.tontine_id == str(tontine_id),
+        TontineMember.user_id == str(member.user_id)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Utilisateur deja membre de cette tontine")
+
+    # Calculer l'ordre
+    max_order = db.query(sqlfunc.max(TontineMember.order)).filter(
+        TontineMember.tontine_id == str(tontine_id)
+    ).scalar() or 0
+    try:
+        max_order = int(max_order)
+    except (ValueError, TypeError):
+        max_order = 0
+
     db_member = TontineMember(
-        tontine_id=tontine_id,
-        user_id=member.user_id,
-        contribution_amount=str(member.contribution_amount)
+        tontine_id=str(tontine_id),
+        user_id=str(member.user_id),
+        contribution_amount=str(member.contribution_amount),
+        order=str(max_order + 1)
     )
     db.add(db_member)
+    db.flush()
+    result = {
+        "id": str(db_member.id),
+        "tontine_id": str(db_member.tontine_id),
+        "user_id": str(db_member.user_id),
+        "user_name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
+        "contribution_amount": float(member.contribution_amount),
+        "order": max_order + 1,
+        "joined_at": db_member.joined_at.isoformat() if db_member.joined_at else None
+    }
     db.commit()
-    db.refresh(db_member)
-    return db_member
+    return result
 
-@router.get("/tontines/{tontine_id}/members", response_model=List[TontineMemberResponse])
+@router.get("/tontines/{tontine_id}/members", tags=["Tontine"], summary="Membres d'une tontine")
 def list_tontine_members(tontine_id: UUID4, db: Session = Depends(get_db_with_tenant)):
     """Liste tous les participants d'une tontine."""
-    return db.query(TontineMember).filter(TontineMember.tontine_id == tontine_id).all()
+    members = db.query(TontineMember).filter(TontineMember.tontine_id == str(tontine_id)).all()
+    items = []
+    for m in members:
+        user = db.query(User).filter(User.id == str(m.user_id)).first()
+        items.append({
+            "id": str(m.id),
+            "tontine_id": str(m.tontine_id),
+            "user_id": str(m.user_id),
+            "user_name": f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Inconnu",
+            "user_email": user.email if user else "",
+            "contribution_amount": float(m.contribution_amount) if m.contribution_amount else 0,
+            "order": int(m.order) if m.order else 0,
+            "joined_at": m.joined_at.isoformat() if m.joined_at else None
+        })
+    return items
 
 @router.get("/tenants", response_model=List[TenantResponse], tags=["Tenants & Pays"], summary="Liste des pays")
 def list_tenants(db: Session = Depends(get_db)):

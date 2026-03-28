@@ -350,7 +350,7 @@ async def get_all_audit_logs(
         query = query.filter(AuditLog.user_id == user_id)
 
     total = query.count()
-    logs = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit).all()
+    logs = query.order_by(AuditLog.timestamp.desc()).offset(offset).limit(limit).all()
 
     return {
         "total": total,
@@ -1334,7 +1334,7 @@ async def list_tontines_admin(
     current_user: CurrentUser = RequireAdmin
 ):
     """Liste les tontines avec pagination et filtres."""
-    from app.models import Tontine, TontineMember
+    from app.models import Tontine, TontineMember, TontineCycle
 
     query = db.query(Tontine)
 
@@ -1347,8 +1347,51 @@ async def list_tontines_admin(
     offset = (page - 1) * page_size
     tontines = query.order_by(Tontine.created_at.desc()).offset(offset).limit(page_size).all()
 
+    items = []
+    for t in tontines:
+        # Compter les membres
+        members = db.query(TontineMember).filter(TontineMember.tontine_id == str(t.id)).all()
+        current_members = len(members)
+
+        # Contribution moyenne des membres (ou target_amount si pas de membres)
+        if members:
+            try:
+                contribution_amount = sum(float(m.contribution_amount) for m in members) / current_members
+            except (ValueError, TypeError):
+                contribution_amount = 0
+        else:
+            contribution_amount = 0
+
+        # Cycle actuel
+        last_cycle = db.query(func.max(TontineCycle.cycle_number)).filter(
+            TontineCycle.tontine_id == str(t.id)
+        ).scalar() or 0
+
+        # Max membres: target_amount / contribution_amount ou 10 par defaut
+        try:
+            target = float(t.target_amount)
+            max_members = int(target / contribution_amount) if contribution_amount > 0 else 10
+        except (ValueError, TypeError, ZeroDivisionError):
+            max_members = 10
+
+        items.append({
+            "id": str(t.id),
+            "name": t.name,
+            "admin_id": str(t.admin_id),
+            "target_amount": float(t.target_amount) if t.target_amount else 0,
+            "contribution_amount": contribution_amount,
+            "frequency": t.frequency or "monthly",
+            "distribution_method": t.distribution_method or "rotating",
+            "status": t.status or "open",
+            "current_members": current_members,
+            "max_members": max_members,
+            "current_cycle": last_cycle,
+            "base_currency": t.base_currency or "XOF",
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        })
+
     return {
-        "items": tontines,
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,

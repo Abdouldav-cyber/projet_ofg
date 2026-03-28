@@ -135,19 +135,21 @@ BEGIN
     )', schema_name);
 
     EXECUTE format('CREATE TABLE IF NOT EXISTS %I.audit_logs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         user_id UUID,
-        tenant_id VARCHAR(10),
-        session_id VARCHAR(100),
-        action VARCHAR(100) NOT NULL,
-        resource VARCHAR(100),
-        resource_id VARCHAR(100),
-        before_value JSONB,
-        after_value JSONB,
-        details JSONB,
-        ip_address VARCHAR(45),
-        user_agent VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        user_email VARCHAR(255),
+        user_role VARCHAR(50),
+        ip_address INET,
+        user_agent TEXT,
+        action VARCHAR(100),
+        resource_type VARCHAR(50),
+        resource_id UUID,
+        changes JSONB,
+        metadata JSONB,
+        tenant_id UUID,
+        request_id UUID,
+        session_id UUID
     )', schema_name);
 
     EXECUTE format('CREATE TABLE IF NOT EXISTS %I.support_tickets (

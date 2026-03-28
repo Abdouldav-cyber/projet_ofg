@@ -1,0 +1,97 @@
+@startuml Architecture Technique - Djembe Bank
+
+skinparam component {
+    BackgroundColor #F8F9FA
+    BorderColor #2C3E50
+}
+
+title **Architecture Technique - Djembe Bank**\nDeploiement Docker Compose
+
+' ==================== CLIENTS ====================
+
+node "Navigateur Web" as browser #EBF5FB {
+    [React Admin Dashboard\n(MUI + TypeScript)\nPort 3000] as frontend
+}
+
+' ==================== SERVICES ====================
+
+cloud "Backend Services" as backend #E8F6F3 {
+    node "djembe-api (Port 8000)" as api {
+        [FastAPI Core Service] as core
+        [RBAC + JWT Auth] as auth
+        [Tontine Engine] as tontine_svc
+        [Fraud Detection\n(ML + Rules)] as fraud
+        [Transaction Saga] as saga
+        [KYC Service] as kyc_svc
+        [Notification Service\n(Twilio + SendGrid)] as notif
+        [Currency Service] as currency
+        [Encryption\n(AES-256-GCM)] as encrypt
+        [Audit Logger] as audit_svc
+    }
+
+    node "djembe-websocket (Port 8080)" as ws {
+        [WebSocket Server\n(Temps Reel)] as websocket
+    }
+}
+
+' ==================== DATA ====================
+
+database "Stockage" as storage #FEF9E7 {
+    node "djembe-db (Port 5432)" as db {
+        [PostgreSQL 15] as postgres
+        [Schema: core\n(tenants)] as core_schema
+        [Schema: tenant_sn\n(Senegal)] as sn_schema
+        [Schema: tenant_ci\n(Cote d'Ivoire)] as ci_schema
+        [Schema: tenant_...\n(Autres pays)] as other_schema
+    }
+
+    node "djembe-redis (Port 6379)" as redis_node {
+        [Redis 7.2\n(Cache + Pub/Sub)] as redis
+    }
+}
+
+' ==================== MESSAGING ====================
+
+queue "Messaging" as messaging #FDEDEC {
+    node "djembe-kafka (Port 9092)" as kafka_node {
+        [Apache Kafka\n(Event Streaming)] as kafka
+    }
+    node "djembe-zookeeper (Port 2181)" as zk {
+        [Zookeeper\n(Coordination)] as zookeeper
+    }
+}
+
+' ==================== EXTERNAL ====================
+
+cloud "Services Externes" as external #F5F5F5 {
+    [ExchangeRate API\n(Taux de change)] as exchange_api
+    [Twilio\n(SMS)] as twilio
+    [SendGrid\n(Email)] as sendgrid
+}
+
+' ==================== CONNEXIONS ====================
+
+frontend --> core : REST API\n(HTTPS)
+frontend --> websocket : WebSocket\n(WSS)
+
+core --> postgres : SQL\n(psycopg2)
+core --> redis : Cache\n(redis-py)
+core --> kafka : Events\n(aiokafka)
+
+websocket --> redis : Pub/Sub
+
+currency --> exchange_api : HTTP
+notif --> twilio : HTTP
+notif --> sendgrid : HTTP
+
+kafka --> zookeeper : Coordination
+
+auth --> core
+tontine_svc --> core
+fraud --> core
+saga --> core
+kyc_svc --> core
+encrypt --> core
+audit_svc --> core
+
+@enduml

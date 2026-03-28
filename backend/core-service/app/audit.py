@@ -29,3 +29,11 @@ class AuditLog(Base):
     tenant_id = Column(UUID(as_uuid=True))
     request_id = Column(UUID(as_uuid=True))
     session_id = Column(UUID(as_uuid=True))
+
+    @classmethod
+    def log(cls, db, user_id, action, **kwargs):
+        """Crée et persiste un log d'audit."""
+        entry = cls(user_id=user_id, action=action, **kwargs)
+        db.add(entry)
+        db.commit()
+        return entry

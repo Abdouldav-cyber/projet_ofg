@@ -1,0 +1,304 @@
+@startuml Diagramme de Classes - Djembe Bank
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam class {
+    BackgroundColor #F8F9FA
+    BorderColor #2C3E50
+    ArrowColor #2C3E50
+    FontSize 12
+}
+
+title **Diagramme de Classes - Djembe Bank**\nPlateforme Bancaire Multi-Tenant SaaS
+
+' ==================== CORE ====================
+
+package "Core (Schema Central)" #E8F6F3 {
+    class Tenant {
+        +tenant_id : UUID <<PK>>
+        +name : String(100)
+        +country_code : String(3) <<unique>>
+        +regulatory_authority : String(100)
+        +base_currency : String(3)
+        +status : String(20)
+        +config : JSONB
+        +created_at : Timestamp
+        --
+        Statuts: active, suspended, maintenance
+    }
+}
+
+' ==================== TENANT SCHEMA ====================
+
+package "Tenant Schema (par pays)" #EBF5FB {
+
+    class User {
+        +id : UUID <<PK>>
+        +email : String(255) <<unique>>
+        +phone : String(20)
+        +password_hash : String(255)
+        +first_name : String(100)
+        +last_name : String(100)
+        +role : String(50)
+        +is_active : Boolean
+        +kyc_status : String(20)
+        +created_at : Timestamp
+        --
+        Roles: customer, support_l1,
+        support_l2, country_admin, super_admin
+        KYC: pending, approved, rejected
+    }
+
+    class Account {
+        +id : UUID <<PK>>
+        +user_id : UUID <<FK>>
+        +account_type : String(50)
+        +iban : String(34) <<unique>>
+        +bic : String(11)
+        +status : String(20)
+        +daily_limit : JSON
+        +monthly_limit : JSON
+        +created_at : Timestamp
+        --
+        Types: personal, business,
+        savings, tontine
+        Statuts: active, frozen, closed
+    }
+
+    class AccountBalance {
+        +id : UUID <<PK>>
+        +account_id : UUID <<FK>>
+        +currency : String(3)
+        +available : JSON (Decimal)
+        +pending : JSON (Decimal)
+        +last_updated : Timestamp
+    }
+
+    class Transaction {
+        +id : UUID <<PK>>
+        +from_account_id : UUID <<FK>>
+        +to_account_id : UUID <<FK>>
+        +amount : JSON (Decimal)
+        +currency : String(3)
+        +reference : String(140)
+        +transaction_type : String(50)
+        +status : String(20)
+        +created_at : Timestamp
+        --
+        Types: internal, international, p2p
+        Statuts: pending, completed,
+        failed, reversed
+    }
+
+    class LedgerEntry {
+        +id : UUID <<PK>>
+        +account_id : UUID <<FK>>
+        +transaction_id : UUID <<FK>>
+        +entry_type : String(10)
+        +amount : JSON (Decimal)
+        +currency : String(3)
+        +balance_after : JSON (Decimal)
+        +created_at : Timestamp
+        --
+        Types: DEBIT, CREDIT
+        (Double-entree comptable)
+    }
+
+    class Tontine {
+        +id : UUID <<PK>>
+        +name : String(100)
+        +admin_id : UUID <<FK>>
+        +target_amount : JSON (Decimal)
+        +base_currency : String(3)
+        +frequency : String(20)
+        +distribution_method : String(20)
+        +status : String(20)
+        +created_at : Timestamp
+        --
+        Frequences: weekly, monthly
+        Distribution: rotating, random, vote
+        Statuts: open, active, completed
+    }
+
+    class TontineMember {
+        +id : UUID <<PK>>
+        +tontine_id : UUID <<FK>>
+        +user_id : UUID <<FK>>
+        +contribution_amount : JSON (Decimal)
+        +order : Integer
+        +joined_at : Timestamp
+    }
+
+    class TontineCycle {
+        +id : UUID <<PK>>
+        +tontine_id : UUID <<FK>>
+        +cycle_number : Integer
+        +recipient_user_id : UUID <<FK>>
+        +amount : JSON (Decimal)
+        +currency : String(3)
+        +disbursement_date : Timestamp
+        +status : String(20)
+        +created_at : Timestamp
+        --
+        Statuts: pending, paid, defaulted
+    }
+
+    class KYCDocument {
+        +id : UUID <<PK>>
+        +user_id : UUID <<FK>>
+        +document_type : String(50)
+        +document_url : String(255)
+        +status : String(20)
+        +rejection_reason : String(255)
+        +submitted_at : Timestamp
+        +verified_at : Timestamp
+        --
+        Types: passport, national_id,
+        proof_of_residence
+    }
+
+    class SupportTicket {
+        +id : UUID <<PK>>
+        +user_id : UUID <<FK>>
+        +assigned_to : UUID <<FK>>
+        +subject : String(200)
+        +description : String(2000)
+        +category : String(50)
+        +priority : String(20)
+        +status : String(20)
+        +resolution : String(2000)
+        +created_at : Timestamp
+        +updated_at : Timestamp
+        +resolved_at : Timestamp
+        --
+        Priorites: low, medium, high, urgent
+        Statuts: open, in_progress,
+        resolved, closed
+    }
+
+    class ChatMessage {
+        +id : UUID <<PK>>
+        +ticket_id : UUID <<FK>>
+        +sender_id : UUID <<FK>>
+        +sender_role : String(20)
+        +message : String(5000)
+        +message_type : String(20)
+        +file_url : String(500)
+        +is_read : Boolean
+        +created_at : Timestamp
+        --
+        Types: text, image, file, system
+    }
+
+    class AuditLog {
+        +log_id : UUID <<PK>>
+        +timestamp : Timestamp
+        +user_id : UUID <<FK>>
+        +user_email : String(255)
+        +user_role : String(50)
+        +ip_address : INET
+        +action : String(100)
+        +resource_type : String(50)
+        +resource_id : UUID
+        +changes : JSONB
+        +metadata : JSONB
+        +tenant_id : UUID
+    }
+}
+
+' ==================== SERVICES (Backend) ====================
+
+package "Services Backend" #FDEDEC {
+
+    class TransactionSaga {
+        -state : SagaState
+        -transaction_data : dict
+        +validate() : bool
+        +check_balance() : bool
+        +reserve_funds() : bool
+        +execute() : Transaction
+        +rollback() : void
+        --
+        Etats: INITIATED, VALIDATED,
+        RESERVED, EXECUTED,
+        COMPLETED, ROLLED_BACK
+    }
+
+    class TontineEngine {
+        +create_tontine() : Tontine
+        +add_member() : TontineMember
+        +start_tontine() : void
+        +collect_contributions() : dict
+        +select_recipient() : UUID
+        +distribute() : Transaction
+        +get_tontine_status() : dict
+    }
+
+    class FraudDetectionEngine {
+        +analyze_transaction() : dict
+        -extract_features() : list
+        -ml_predict() : float
+        -rule_based_score() : float
+        --
+        Score: 0-100
+        LOW < 70, MEDIUM 70-85,
+        HIGH > 85
+    }
+
+    class EncryptionService {
+        +encrypt() : String
+        +decrypt() : String
+        -derive_key() : bytes
+        --
+        AES-256-GCM
+    }
+
+    class NotificationService {
+        +send_sms() : bool
+        +send_email() : bool
+        +send_otp() : String
+        --
+        Twilio (SMS)
+        SendGrid (Email)
+    }
+
+    class CurrencyService {
+        +get_rates() : dict
+        +convert() : float
+        --
+        Cache Redis TTL 5min
+        XOF, EUR, USD, GBP,
+        NGN, GHS
+    }
+}
+
+' ==================== RELATIONS ====================
+
+User "1" --> "0..*" Account : possede
+User "1" --> "0..*" KYCDocument : soumet
+User "1" --> "0..*" SupportTicket : cree
+User "1" --> "0..*" AuditLog : genere
+
+Account "1" --> "1..*" AccountBalance : a
+Account "1" --> "0..*" Transaction : emet
+Account "1" --> "0..*" Transaction : recoit
+Account "1" --> "0..*" LedgerEntry : enregistre
+
+Transaction "1" --> "2" LedgerEntry : produit
+
+Tontine "1" --> "0..*" TontineMember : contient
+Tontine "1" --> "0..*" TontineCycle : planifie
+User "1" --> "0..*" TontineMember : participe
+User "1" --> "0..*" TontineCycle : beneficie
+
+SupportTicket "1" --> "0..*" ChatMessage : contient
+User "1" --> "0..*" ChatMessage : envoie
+
+TontineEngine --> Tontine : gere
+TontineEngine --> TontineMember : gere
+TontineEngine --> TontineCycle : gere
+TransactionSaga --> Transaction : orchestre
+TransactionSaga --> LedgerEntry : cree
+FraudDetectionEngine --> Transaction : analyse
+
+@enduml

@@ -17,6 +17,14 @@ import {
   Button,
   Chip,
   LinearProgress,
+  Autocomplete,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from '@mui/material'
 import {
   Search,
@@ -26,6 +34,7 @@ import {
   Add,
   PlayArrow,
   SkipNext,
+  PersonAdd,
 } from '@mui/icons-material'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSnackbar } from 'notistack'
@@ -33,9 +42,20 @@ import apiService from '@/services/api'
 import DataTable, { Column } from '@/components/common/DataTable'
 import StatusChip from '@/components/common/StatusChip'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
-import { Tontine, TontineFrequency, TontineStatus, DistributionMethod } from '@/types'
+import { Tontine, TontineStatus } from '@/types'
 import { useDebounce } from '@/hooks/useDebounce'
 import { format } from 'date-fns'
+
+interface TontineMember {
+  id: string
+  tontine_id: string
+  user_id: string
+  user_name: string
+  user_email?: string
+  contribution_amount: number
+  order: number
+  joined_at: string
+}
 
 export default function TontinesPage() {
   const { enqueueSnackbar } = useSnackbar()
@@ -56,6 +76,15 @@ export default function TontinesPage() {
   const [newFrequency, setNewFrequency] = useState('monthly')
   const [newMaxMembers, setNewMaxMembers] = useState('')
   const [newDistribution, setNewDistribution] = useState('rotating')
+
+  // Members management
+  const [membersOpen, setMembersOpen] = useState(false)
+  const [membersTontine, setMembersTontine] = useState<Tontine | null>(null)
+  const [addMemberOpen, setAddMemberOpen] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [memberContribution, setMemberContribution] = useState('')
+  const [userSearch, setUserSearch] = useState('')
+  const debouncedUserSearch = useDebounce(userSearch, 400)
 
   // Confirmation
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -82,6 +111,21 @@ export default function TontinesPage() {
       return apiService.getTontines(params)
     },
   })
+
+  // Query members for selected tontine
+  const { data: membersData, refetch: refetchMembers } = useQuery({
+    queryKey: ['tontine-members', membersTontine?.id],
+    queryFn: () => apiService.getTontineMembers(membersTontine!.id),
+    enabled: !!membersTontine,
+  })
+
+  // Query users for autocomplete
+  const { data: usersData } = useQuery({
+    queryKey: ['users-search-tontine', debouncedUserSearch],
+    queryFn: () => apiService.getUsers({ page: 1, page_size: 20, search: debouncedUserSearch || undefined }),
+    enabled: addMemberOpen,
+  })
+  const usersList = usersData?.items || usersData || []
 
   // Mutation creation
   const createMutation = useMutation({
@@ -126,6 +170,26 @@ export default function TontinesPage() {
     },
   })
 
+  // Mutation add member
+  const addMemberMutation = useMutation({
+    mutationFn: () => apiService.addTontineMember(membersTontine!.id, {
+      user_id: selectedUserId!,
+      contribution_amount: parseFloat(memberContribution),
+    }),
+    onSuccess: () => {
+      enqueueSnackbar('Membre ajoute avec succes', { variant: 'success' })
+      refetchMembers()
+      queryClient.invalidateQueries({ queryKey: ['tontines'] })
+      setAddMemberOpen(false)
+      setSelectedUserId(null)
+      setMemberContribution('')
+      setUserSearch('')
+    },
+    onError: (error: any) => {
+      enqueueSnackbar(error.response?.data?.detail || 'Erreur lors de l\'ajout', { variant: 'error' })
+    },
+  })
+
   const handleStart = (tontine: Tontine) => {
     setConfirmDialog({
       open: true,
@@ -140,7 +204,7 @@ export default function TontinesPage() {
     setConfirmDialog({
       open: true,
       title: 'Declencher le prochain cycle',
-      message: `Declencher le cycle ${tontine.current_cycle + 1} de la tontine "${tontine.name}" ? Le beneficiaire sera selectionne et les fonds distribues.`,
+      message: `Declencher le cycle ${(tontine.current_cycle || 0) + 1} de la tontine "${tontine.name}" ? Le beneficiaire sera selectionne et les fonds distribues.`,
       severity: 'warning',
       action: () => { triggerCycleMutation.mutate(tontine.id); setConfirmDialog(d => ({ ...d, open: false })) },
     })
@@ -151,29 +215,35 @@ export default function TontinesPage() {
     setDetailsOpen(true)
   }
 
+  const handleViewMembers = (tontine: Tontine) => {
+    setMembersTontine(tontine)
+    setMembersOpen(true)
+  }
+
   const formatCurrency = (amount: number) => {
+    if (isNaN(amount) || amount === null || amount === undefined) return '0 XOF'
     return new Intl.NumberFormat('fr-FR', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount) + ' XOF'
   }
 
-  const getFrequencyLabel = (freq: TontineFrequency) => {
-    const labels: Record<TontineFrequency, string> = {
+  const getFrequencyLabel = (freq: string) => {
+    const labels: Record<string, string> = {
       daily: 'Quotidien',
       weekly: 'Hebdomadaire',
       monthly: 'Mensuel',
     }
-    return labels[freq]
+    return labels[freq] || freq
   }
 
-  const getDistributionLabel = (method: DistributionMethod) => {
-    const labels: Record<DistributionMethod, string> = {
+  const getDistributionLabel = (method: string) => {
+    const labels: Record<string, string> = {
       rotating: 'Rotation',
-      random: 'Aléatoire',
+      random: 'Aleatoire',
       vote: 'Vote',
     }
-    return labels[method]
+    return labels[method] || method
   }
 
   const columns: Column<Tontine>[] = [
@@ -189,19 +259,19 @@ export default function TontinesPage() {
     },
     {
       id: 'contribution_amount',
-      label: 'Montant contribution',
+      label: 'Contribution',
       align: 'right',
-      render: (tontine) => formatCurrency(tontine.contribution_amount),
+      render: (tontine) => formatCurrency(tontine.contribution_amount || 0),
     },
     {
       id: 'target_amount',
       label: 'Montant cible',
       align: 'right',
-      render: (tontine) => formatCurrency(tontine.target_amount),
+      render: (tontine) => formatCurrency(tontine.target_amount || 0),
     },
     {
       id: 'frequency',
-      label: 'Fréquence',
+      label: 'Frequence',
       render: (tontine) => (
         <Chip label={getFrequencyLabel(tontine.frequency)} size="small" />
       ),
@@ -211,12 +281,21 @@ export default function TontinesPage() {
       label: 'Membres',
       align: 'center',
       render: (tontine) => (
-        <Box display="flex" alignItems="center" gap={0.5} justifyContent="center">
-          <People fontSize="small" color="action" />
-          <Typography variant="body2">
-            {tontine.current_members}/{tontine.max_members}
-          </Typography>
-        </Box>
+        <Tooltip title="Voir les membres">
+          <Box
+            display="flex"
+            alignItems="center"
+            gap={0.5}
+            justifyContent="center"
+            sx={{ cursor: 'pointer' }}
+            onClick={() => handleViewMembers(tontine)}
+          >
+            <People fontSize="small" color="action" />
+            <Typography variant="body2">
+              {tontine.current_members || 0}/{tontine.max_members || '-'}
+            </Typography>
+          </Box>
+        </Tooltip>
       ),
     },
     {
@@ -224,7 +303,7 @@ export default function TontinesPage() {
       label: 'Cycle',
       align: 'center',
       render: (tontine) => (
-        <Chip label={`Cycle ${tontine.current_cycle}`} size="small" color="info" />
+        <Chip label={`Cycle ${tontine.current_cycle || 0}`} size="small" color="info" />
       ),
     },
     {
@@ -241,6 +320,11 @@ export default function TontinesPage() {
           <Tooltip title="Voir details">
             <IconButton size="small" onClick={() => handleViewDetails(tontine)}>
               <Visibility fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Gerer les membres">
+            <IconButton size="small" color="primary" onClick={() => handleViewMembers(tontine)}>
+              <People fontSize="small" />
             </IconButton>
           </Tooltip>
           {tontine.status !== 'active' && tontine.status !== 'completed' && (
@@ -321,9 +405,10 @@ export default function TontinesPage() {
             onChange={(e) => setStatusFilter(e.target.value as TontineStatus | 'all')}
           >
             <MenuItem value="all">Tous</MenuItem>
+            <MenuItem value="open">Ouvert</MenuItem>
             <MenuItem value="active">Actif</MenuItem>
-            <MenuItem value="completed">Complété</MenuItem>
-            <MenuItem value="cancelled">Annulé</MenuItem>
+            <MenuItem value="completed">Complete</MenuItem>
+            <MenuItem value="cancelled">Annule</MenuItem>
           </Select>
         </FormControl>
 
@@ -348,13 +433,14 @@ export default function TontinesPage() {
         rowKey={(tontine) => tontine.id}
       />
 
+      {/* Dialog details tontine */}
       <Dialog
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Détails de la tontine</DialogTitle>
+        <DialogTitle>Details de la tontine</DialogTitle>
         <DialogContent>
           {selectedTontine && (
             <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -367,7 +453,7 @@ export default function TontinesPage() {
                   Montant de contribution
                 </Typography>
                 <Typography variant="h5" color="primary" fontWeight={600}>
-                  {formatCurrency(selectedTontine.contribution_amount)}
+                  {formatCurrency(selectedTontine.contribution_amount || 0)}
                 </Typography>
               </Grid>
 
@@ -376,13 +462,13 @@ export default function TontinesPage() {
                   Montant cible
                 </Typography>
                 <Typography variant="h5" fontWeight={600}>
-                  {formatCurrency(selectedTontine.target_amount)}
+                  {formatCurrency(selectedTontine.target_amount || 0)}
                 </Typography>
               </Grid>
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="caption" color="text.secondary">
-                  Fréquence
+                  Frequence
                 </Typography>
                 <Typography variant="body1">
                   {getFrequencyLabel(selectedTontine.frequency)}
@@ -391,7 +477,7 @@ export default function TontinesPage() {
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="caption" color="text.secondary">
-                  Méthode de distribution
+                  Methode de distribution
                 </Typography>
                 <Typography variant="body1">
                   {getDistributionLabel(selectedTontine.distribution_method)}
@@ -403,7 +489,7 @@ export default function TontinesPage() {
                   Cycle actuel
                 </Typography>
                 <Typography variant="body1">
-                  Cycle {selectedTontine.current_cycle}
+                  Cycle {selectedTontine.current_cycle || 0}
                 </Typography>
               </Grid>
 
@@ -424,34 +510,166 @@ export default function TontinesPage() {
                   <LinearProgress
                     variant="determinate"
                     value={
-                      (selectedTontine.current_members /
-                        selectedTontine.max_members) *
-                      100
+                      selectedTontine.max_members > 0
+                        ? ((selectedTontine.current_members || 0) / selectedTontine.max_members) * 100
+                        : 0
                     }
                     sx={{ flexGrow: 1, height: 8, borderRadius: 4 }}
                   />
                   <Typography variant="body2">
-                    {selectedTontine.current_members}/{selectedTontine.max_members}
+                    {selectedTontine.current_members || 0}/{selectedTontine.max_members || '-'}
                   </Typography>
                 </Box>
               </Grid>
 
               <Grid item xs={12}>
                 <Typography variant="caption" color="text.secondary">
-                  Date de création
+                  Date de creation
                 </Typography>
                 <Typography variant="body1">
-                  {format(
-                    new Date(selectedTontine.created_at),
-                    'dd/MM/yyyy à HH:mm'
-                  )}
+                  {selectedTontine.created_at
+                    ? format(new Date(selectedTontine.created_at), 'dd/MM/yyyy HH:mm')
+                    : '-'}
                 </Typography>
               </Grid>
             </Grid>
           )}
         </DialogContent>
         <DialogActions>
+          <Button
+            startIcon={<People />}
+            onClick={() => {
+              setDetailsOpen(false)
+              if (selectedTontine) handleViewMembers(selectedTontine)
+            }}
+          >
+            Voir les membres
+          </Button>
           <Button onClick={() => setDetailsOpen(false)}>Fermer</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog members */}
+      <Dialog
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">
+              Membres - {membersTontine?.name}
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PersonAdd />}
+              onClick={() => setAddMemberOpen(true)}
+              sx={{ bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6D28D9' }, textTransform: 'none' }}
+            >
+              Ajouter un membre
+            </Button>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {Array.isArray(membersData) && membersData.length > 0 ? (
+            <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#F8FAFC' }}>
+                    <TableCell><strong>Ordre</strong></TableCell>
+                    <TableCell><strong>Nom</strong></TableCell>
+                    <TableCell><strong>Email</strong></TableCell>
+                    <TableCell align="right"><strong>Contribution</strong></TableCell>
+                    <TableCell><strong>Rejoint le</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(membersData as TontineMember[]).map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell>
+                        <Chip label={`#${member.order}`} size="small" color="primary" variant="outlined" />
+                      </TableCell>
+                      <TableCell>{member.user_name || 'Inconnu'}</TableCell>
+                      <TableCell>{member.user_email || '-'}</TableCell>
+                      <TableCell align="right">{formatCurrency(member.contribution_amount)}</TableCell>
+                      <TableCell>
+                        {member.joined_at
+                          ? format(new Date(member.joined_at), 'dd/MM/yyyy')
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <People sx={{ fontSize: 48, color: '#CBD5E1', mb: 1 }} />
+              <Typography color="text.secondary">
+                Aucun membre pour le moment
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Ajoutez des membres pour demarrer la tontine
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMembersOpen(false)}>Fermer</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog add member */}
+      <Dialog open={addMemberOpen} onClose={() => setAddMemberOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Ajouter un membre a la tontine</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <Autocomplete
+                options={usersList}
+                getOptionLabel={(option: any) =>
+                  `${option.first_name || ''} ${option.last_name || ''} (${option.email})`.trim()
+                }
+                isOptionEqualToValue={(option: any, value: any) => option.id === value.id}
+                onInputChange={(_, value) => setUserSearch(value)}
+                onChange={(_, value: any) => setSelectedUserId(value?.id || null)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Rechercher un utilisateur"
+                    placeholder="Tapez un nom ou email..."
+                    fullWidth
+                  />
+                )}
+                noOptionsText="Aucun utilisateur trouve"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Montant de contribution (XOF)"
+                type="number"
+                value={memberContribution}
+                onChange={(e) => setMemberContribution(e.target.value)}
+                placeholder="Ex: 25000"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setAddMemberOpen(false); setSelectedUserId(null); setMemberContribution('') }}>
+            Annuler
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => addMemberMutation.mutate()}
+            disabled={!selectedUserId || !memberContribution || addMemberMutation.isPending}
+            sx={{ bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6D28D9' } }}
+          >
+            {addMemberMutation.isPending ? 'Ajout...' : 'Ajouter'}
+          </Button>
         </DialogActions>
       </Dialog>
 

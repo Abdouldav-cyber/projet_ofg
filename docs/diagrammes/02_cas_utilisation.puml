@@ -1,0 +1,165 @@
+@startuml Diagramme de Cas d'Utilisation - Djembe Bank
+
+skinparam usecase {
+    BackgroundColor #F8F9FA
+    BorderColor #2C3E50
+    ArrowColor #2C3E50
+}
+skinparam actor {
+    BackgroundColor #EBF5FB
+    BorderColor #2C3E50
+}
+
+title **Diagramme de Cas d'Utilisation - Djembe Bank**\nPlateforme Bancaire Multi-Tenant
+
+' ==================== ACTEURS ====================
+
+actor "Client\n(Customer)" as CLIENT #E8F8F5
+actor "Support L1" as SUPPORT1 #FEF9E7
+actor "Support L2" as SUPPORT2 #FDEDEC
+actor "Country Admin" as CADMIN #E8DAEF
+actor "Super Admin" as SADMIN #D5F5E3
+
+' ==================== HIERARCHIE DES ROLES ====================
+
+SADMIN --|> CADMIN : herite
+CADMIN --|> SUPPORT2 : herite
+SUPPORT2 --|> SUPPORT1 : herite
+
+' ==================== SYSTEMES EXTERNES ====================
+
+actor "API Taux\nde Change" as EXCHANGE #F5F5F5
+actor "Twilio\n(SMS)" as TWILIO #F5F5F5
+actor "SendGrid\n(Email)" as SENDGRID #F5F5F5
+
+' ==================== CAS D'UTILISATION ====================
+
+rectangle "Authentification & Securite" #E8F6F3 {
+    usecase "S'inscrire" as UC_REGISTER
+    usecase "Se connecter\n(JWT + MFA)" as UC_LOGIN
+    usecase "Activer MFA\n(TOTP)" as UC_MFA
+    usecase "Modifier\nson profil" as UC_PROFILE
+    usecase "Changer\nmot de passe" as UC_PASSWORD
+}
+
+rectangle "Services Bancaires" #EBF5FB {
+    usecase "Ouvrir un\ncompte" as UC_OPEN_ACC
+    usecase "Consulter\nsolde" as UC_BALANCE
+    usecase "Effectuer\nun virement" as UC_TRANSFER
+    usecase "Deposer\nde l'argent" as UC_DEPOSIT
+    usecase "Consulter\nhistorique" as UC_HISTORY
+    usecase "Convertir\ndevises" as UC_CONVERT
+}
+
+rectangle "Tontine (Epargne Collective)" #FEF9E7 {
+    usecase "Creer une\ntontine" as UC_CREATE_TONTINE
+    usecase "Ajouter des\nmembres" as UC_ADD_MEMBER
+    usecase "Demarrer\nla tontine" as UC_START_TONTINE
+    usecase "Declencher\nun cycle" as UC_TRIGGER_CYCLE
+    usecase "Consulter\nles membres" as UC_VIEW_MEMBERS
+}
+
+rectangle "KYC (Conformite)" #FDEDEC {
+    usecase "Soumettre\ndocument KYC" as UC_SUBMIT_KYC
+    usecase "Verifier\ndocument KYC" as UC_VERIFY_KYC
+}
+
+rectangle "Support Client" #E8DAEF {
+    usecase "Creer un\nticket" as UC_CREATE_TICKET
+    usecase "Chat en\ntemps reel" as UC_CHAT
+    usecase "Consulter\nun client" as UC_VIEW_CLIENT
+    usecase "Geler un\ncompte" as UC_FREEZE
+    usecase "Degeler un\ncompte" as UC_UNFREEZE
+    usecase "Rembourser\ntransaction" as UC_REFUND
+}
+
+rectangle "Administration Pays" #D5F5E3 {
+    usecase "Gerer les\nutilisateurs" as UC_MANAGE_USERS
+    usecase "Valider/Rejeter\nKYC" as UC_KYC_ADMIN
+    usecase "Consulter\ntransactions" as UC_VIEW_TX
+    usecase "Generer\nrapports" as UC_REPORTS
+    usecase "Exporter\nrapports" as UC_EXPORT
+}
+
+rectangle "Super Administration" #D4EFDF {
+    usecase "Creer un\ntenant (pays)" as UC_CREATE_TENANT
+    usecase "Gerer les\ntenants" as UC_MANAGE_TENANTS
+    usecase "Consulter\naudit logs" as UC_AUDIT
+    usecase "Analytics\nglobaux" as UC_ANALYTICS
+    usecase "Configurer\ntenant" as UC_CONFIG_TENANT
+}
+
+rectangle "Systeme (Automatique)" #F5F5F5 {
+    usecase "Detecter\nfraude" as UC_FRAUD
+    usecase "Envoyer\nnotifications" as UC_NOTIFY
+    usecase "Journaliser\naudit" as UC_LOG
+    usecase "Chiffrer\ndonnees PII" as UC_ENCRYPT
+}
+
+' ==================== ASSOCIATIONS CLIENT ====================
+
+CLIENT --> UC_REGISTER
+CLIENT --> UC_LOGIN
+CLIENT --> UC_MFA
+CLIENT --> UC_PROFILE
+CLIENT --> UC_PASSWORD
+CLIENT --> UC_OPEN_ACC
+CLIENT --> UC_BALANCE
+CLIENT --> UC_TRANSFER
+CLIENT --> UC_DEPOSIT
+CLIENT --> UC_HISTORY
+CLIENT --> UC_CONVERT
+CLIENT --> UC_SUBMIT_KYC
+CLIENT --> UC_CREATE_TICKET
+CLIENT --> UC_CHAT
+CLIENT --> UC_VIEW_MEMBERS
+
+' ==================== ASSOCIATIONS SUPPORT L1 ====================
+
+SUPPORT1 --> UC_VIEW_CLIENT
+SUPPORT1 --> UC_CREATE_TICKET
+SUPPORT1 --> UC_CHAT
+
+' ==================== ASSOCIATIONS SUPPORT L2 ====================
+
+SUPPORT2 --> UC_FREEZE
+SUPPORT2 --> UC_UNFREEZE
+SUPPORT2 --> UC_REFUND
+
+' ==================== ASSOCIATIONS COUNTRY ADMIN ====================
+
+CADMIN --> UC_MANAGE_USERS
+CADMIN --> UC_KYC_ADMIN
+CADMIN --> UC_VIEW_TX
+CADMIN --> UC_REPORTS
+CADMIN --> UC_EXPORT
+CADMIN --> UC_CREATE_TONTINE
+CADMIN --> UC_ADD_MEMBER
+CADMIN --> UC_START_TONTINE
+CADMIN --> UC_TRIGGER_CYCLE
+
+' ==================== ASSOCIATIONS SUPER ADMIN ====================
+
+SADMIN --> UC_CREATE_TENANT
+SADMIN --> UC_MANAGE_TENANTS
+SADMIN --> UC_AUDIT
+SADMIN --> UC_ANALYTICS
+SADMIN --> UC_CONFIG_TENANT
+
+' ==================== INCLUDES / EXTENDS ====================
+
+UC_TRANSFER ..> UC_FRAUD : <<include>>
+UC_TRANSFER ..> UC_LOG : <<include>>
+UC_TRANSFER ..> UC_NOTIFY : <<include>>
+UC_LOGIN ..> UC_LOG : <<include>>
+UC_VERIFY_KYC ..> UC_NOTIFY : <<include>>
+UC_FREEZE ..> UC_LOG : <<include>>
+UC_REFUND ..> UC_LOG : <<include>>
+UC_SUBMIT_KYC ..> UC_ENCRYPT : <<include>>
+UC_TRIGGER_CYCLE ..> UC_TRANSFER : <<include>>
+
+UC_CONVERT ..> EXCHANGE : <<utilise>>
+UC_NOTIFY ..> TWILIO : <<utilise>>
+UC_NOTIFY ..> SENDGRID : <<utilise>>
+
+@enduml
