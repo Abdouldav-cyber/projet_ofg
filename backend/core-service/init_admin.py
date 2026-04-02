@@ -243,7 +243,7 @@ def init_admin():
             print(f"  Email: {result[1]}, Role: {result[2]}")
         else:
             from app.security import get_password_hash
-            password_hash = get_password_hash("SuperAdmin@2025")
+            password_hash = get_password_hash("SuperAdmin@2025!SecurePass")
             admin_id = str(uuid.uuid4())
 
             db.execute(text(f"""
@@ -270,7 +270,7 @@ def init_admin():
         print("=" * 60)
         print(f"\nIdentifiants de connexion:")
         print(f"  Email:       {admin_email}")
-        print(f"  Password:    SuperAdmin@2025")
+        print(f"  Password:    SuperAdmin@2025!SecurePass")
         print(f"  Code Pays:   SN")
         print(f"\nAcces:")
         print(f"  Frontend:    http://localhost:3000")

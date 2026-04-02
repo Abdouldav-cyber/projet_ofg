@@ -20,7 +20,7 @@ def main():
 
     set_tenant_schema(db, "public")
     email = "admin@fintrack.com"
-    pwd = "password123!"
+    pwd = "SuperSecurePassword@2025!Admin"
 
     user = db.query(User).filter(User.email == email).first()
     if not user:

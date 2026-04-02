@@ -5,6 +5,7 @@ from sqlalchemy import text
 from typing import List
 from pydantic import UUID4
 from decimal import Decimal
+from sqlalchemy import or_
 from app.database import get_db, get_db_with_tenant_code, oauth2_scheme
 from app.models import Tenant, User, Account, AccountBalance, Transaction, Tontine, TontineMember
 from app.kyc import KYCDocument
@@ -308,9 +309,19 @@ def create_account(account: AccountCreate, db: Session = Depends(get_db_with_ten
     }
 
 @router.get("/accounts", response_model=List[AccountResponse], tags=["Services Bancaires"], summary="Lister mes comptes")
-def list_accounts(db: Session = Depends(get_db_with_tenant)):
-    """Liste tous les comptes bancaires du pays actuel."""
-    return db.query(Account).all()
+def list_accounts(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    """Liste tous les comptes bancaires de l'utilisateur actuel."""
+    from jose import jwt, JWTError
+    from app.config import settings
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token JWT invalide")
+
+    return db.query(Account).filter(Account.user_id == user_id).all()
 
 @router.post("/accounts/{account_id}/deposit", tags=["Services Bancaires"], summary="Deposer de l'argent (Test)")
 def deposit_money(account_id: UUID4, amount: float, db: Session = Depends(get_db_with_tenant)):
@@ -356,6 +367,62 @@ async def transfer(tx_data: TransactionCreate, db: Session = Depends(get_db_with
         print(f"DEBUG_VIREMENT_ERREUR_CRITIQUE: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Erreur interne de transaction")
+
+@router.get("/transactions", response_model=List[TransactionResponse], tags=["Services Bancaires"], summary="Lister mes transactions")
+def list_my_transactions(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
+    """Liste toutes les transactions des comptes de l'utilisateur."""
+    from jose import jwt, JWTError
+    from app.config import settings
+
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token JWT invalide")
+
+    accounts = db.query(Account.id).filter(Account.user_id == user_id).all()
+    if not accounts:
+        return []
+    account_ids = [acc.id for acc in accounts]
+
+    transactions = db.query(Transaction).filter(
+        or_(
+            Transaction.from_account_id.in_(account_ids),
+            Transaction.to_account_id.in_(account_ids)
+        )
+    ).order_by(Transaction.created_at.desc()).all()
+
+    return transactions
+
+@router.get("/accounts/{account_id}/transactions", response_model=List[TransactionResponse], tags=["Services Bancaires"], summary="Lister transactions d'un compte")
+def list_account_transactions(account_id: UUID4, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
+    """Liste les transactions pour un compte specifique de l'utilisateur."""
+    from jose import jwt, JWTError
+    from app.config import settings
+
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token JWT invalide")
+
+    # Verify that the account belongs to the user
+    account = db.query(Account).filter(Account.id == str(account_id), Account.user_id == user_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Compte non trouve ou non autorise")
+
+    transactions = db.query(Transaction).filter(
+        or_(
+            Transaction.from_account_id == str(account_id),
+            Transaction.to_account_id == str(account_id)
+        )
+    ).order_by(Transaction.created_at.desc()).all()
+
+    return transactions
 
 # --- TONTINE (ÉPARGNE COLLECTIVE) ---
 

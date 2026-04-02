@@ -40,7 +40,7 @@ class TenantResponse(TenantBase):
 class UserCreate(BaseModel):
     """Donnees requises pour la creation d'un utilisateur."""
     email: str = Field(..., example="jean.dupont@example.com")
-    password: str = Field(..., example="Securite123!")
+    password: str = Field(..., min_length=20, example="Securite123!MotDePasseFort2025")
     first_name: str = Field(..., example="Jean")
     last_name: str = Field(..., example="Dupont")
     phone: Optional[str] = Field(None, example="+221770000000")
@@ -194,7 +194,7 @@ class UserUpdate(BaseModel):
 class PasswordChange(BaseModel):
     """Schema pour changer le mot de passe."""
     current_password: str
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=20)
 
 class ProfileUpdate(BaseModel):
     """Schema de mise a jour du profil."""

@@ -17,7 +17,7 @@ def create_default_admin():
     set_tenant_schema(db, tenant_code)
     
     email = "admin@djembe-bank.com"
-    password = "password123!"
+    password = "SuperSecurePassword@2025!Admin"
     
     user = db.query(User).filter(User.email == email).first()
     if user:
