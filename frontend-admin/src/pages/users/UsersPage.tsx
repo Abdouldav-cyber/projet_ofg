@@ -178,6 +178,17 @@ export default function UsersPage() {
     createMutation.mutate(formData)
   }
 
+  const formatRole = (role: string) => {
+    const roles: Record<string, string> = {
+      customer: 'CLIENT',
+      support_l1: 'SUPPORT L1',
+      support_l2: 'SUPPORT L2',
+      country_admin: 'ADMIN PAYS',
+      super_admin: 'SUPER ADMIN',
+    }
+    return roles[role] || role.replace('_', ' ').toUpperCase()
+  }
+
   const columns: Column<User>[] = [
     {
       id: 'name',
@@ -200,7 +211,7 @@ export default function UsersPage() {
       label: 'Rôle',
       render: (user) => (
         <Chip
-          label={user.role.replace('_', ' ').toUpperCase()}
+          label={formatRole(user.role)}
           size="small"
           color="primary"
           variant="outlined"
@@ -513,7 +524,7 @@ export default function UsersPage() {
                   Rôle
                 </Typography>
                 <Typography variant="body1">
-                  {selectedUser.role.replace('_', ' ').toUpperCase()}
+                  {formatRole(selectedUser.role)}
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
