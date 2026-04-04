@@ -1,8 +1,8 @@
-import { ThemeProvider, CssBaseline } from '@mui/material'
+import { CssBaseline } from '@mui/material'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
-import theme from './theme'
+import { ThemeContextProvider } from './contexts/ThemeContext'
 import PrivateRoute from './components/PrivateRoute'
 import Layout from './components/Layout'
 import LoginPage from './pages/auth/LoginPage'
@@ -22,7 +22,7 @@ import NotificationsPage from './pages/notifications/NotificationsPage'
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeContextProvider>
       <CssBaseline />
       <AuthProvider>
         <WebSocketProvider>
@@ -57,7 +57,7 @@ function App() {
           </Routes>
         </WebSocketProvider>
       </AuthProvider>
-    </ThemeProvider>
+    </ThemeContextProvider>
   )
 }
 

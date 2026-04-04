@@ -2,6 +2,20 @@ from pydantic import BaseModel, UUID4, Field
 from datetime import datetime
 from typing import Optional, List
 
+class AccountTypeMetadata(BaseModel):
+    id: str
+    name: str
+    price: str
+    description: str
+
+class CountryMetadata(BaseModel):
+    code: str
+    name: str
+
+class OnboardingMetadataResponse(BaseModel):
+    countries: List[CountryMetadata]
+    account_types: List[AccountTypeMetadata]
+
 class TenantBase(BaseModel):
     """Schéma de base pour un pays (Tenant)."""
     name: str # Nom du pays (ex: Sénégal)
@@ -73,7 +87,7 @@ class TokenData(BaseModel):
 class AccountCreate(BaseModel):
     """Schema de creation de compte."""
     user_id: Optional[str] = Field(None, example="550e8400-e29b-41d4-a716-446655440000", description="ID de l'utilisateur (admin peut specifier)")
-    account_type: str = Field(..., example="personal", description="Type de compte: personal, business, savings, tontine")
+    account_type: str = Field(..., example="courant", description="Type de compte: courant, diaspora, business, savings, tontine")
     initial_currency: Optional[str] = Field("XOF", example="XOF")
 
 class AccountBalanceResponse(BaseModel):

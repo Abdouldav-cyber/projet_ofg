@@ -45,7 +45,7 @@ export interface Account {
   created_at: string
 }
 
-export type AccountType = 'savings' | 'checking' | 'tontine'
+export type AccountType = 'savings' | 'courant' | 'diaspora' | 'business' | 'tontine'
 
 export type AccountStatus = 'active' | 'frozen' | 'closed'
 

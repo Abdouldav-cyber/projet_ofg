@@ -32,7 +32,7 @@ def create_default_admin():
         email=email,
         first_name="Admin",
         last_name="Systeme",
-        role="admin",
+        role="super_admin",
         password_hash=get_password_hash(password),
         is_active=True,
         kyc_status="approved",

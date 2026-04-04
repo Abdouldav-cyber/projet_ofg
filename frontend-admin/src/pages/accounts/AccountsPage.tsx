@@ -250,7 +250,9 @@ export default function AccountsPage() {
       render: (account) => (
         <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
           {account.account_type === 'savings' ? 'Epargne' :
-           account.account_type === 'checking' ? 'Courant' : 'Tontine'}
+           account.account_type === 'courant' ? 'Courant' :
+           account.account_type === 'diaspora' ? 'Diaspora' :
+           account.account_type === 'business' ? 'Pro / PME' : 'Tontine'}
         </Typography>
       ),
     },
@@ -396,8 +398,10 @@ export default function AccountsPage() {
             onChange={(e) => setTypeFilter(e.target.value as AccountType | 'all')}
           >
             <MenuItem value="all">Tous</MenuItem>
+            <MenuItem value="courant">Courant</MenuItem>
+            <MenuItem value="diaspora">Diaspora</MenuItem>
+            <MenuItem value="business">Pro / PME</MenuItem>
             <MenuItem value="savings">Épargne</MenuItem>
-            <MenuItem value="checking">Courant</MenuItem>
             <MenuItem value="tontine">Tontine</MenuItem>
           </Select>
         </FormControl>
@@ -463,7 +467,9 @@ export default function AccountsPage() {
                 </Typography>
                 <Typography variant="body1" sx={{ textTransform: 'capitalize' }}>
                   {selectedAccount.account_type === 'savings' ? 'Épargne' :
-                   selectedAccount.account_type === 'checking' ? 'Courant' : 'Tontine'}
+                   selectedAccount.account_type === 'courant' ? 'Courant' :
+                   selectedAccount.account_type === 'diaspora' ? 'Diaspora' :
+                   selectedAccount.account_type === 'business' ? 'Pro / PME' : 'Tontine'}
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -558,8 +564,10 @@ export default function AccountsPage() {
                   label="Type de compte"
                   onChange={(e) => setNewAccountType(e.target.value)}
                 >
+                  <MenuItem value="courant">Compte Courant</MenuItem>
+                  <MenuItem value="diaspora">Compte Diaspora</MenuItem>
+                  <MenuItem value="business">Compte Pro / PME</MenuItem>
                   <MenuItem value="savings">Epargne</MenuItem>
-                  <MenuItem value="checking">Courant</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

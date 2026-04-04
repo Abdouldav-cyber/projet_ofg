@@ -83,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Mapping des permissions par rôle
     const rolePermissions: Record<string, string[]> = {
       super_admin: ['*'], // Toutes les permissions
+      admin: ['*'], // Alias pour assurer la compatibilité locale
       country_admin: [
         'users:read',
         'users:update',

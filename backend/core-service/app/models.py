@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, TIMESTAMP, JSON, text, Integer, Date, ForeignKey
+from sqlalchemy import Column, String, TIMESTAMP, JSON, text, Integer, Date, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
@@ -27,8 +27,10 @@ class User(Base):
     first_name = Column(String(100))
     last_name = Column(String(100))
     role = Column(String(50), server_default="customer")
-    is_active = Column(JSON, server_default=text("'true'"))  # Boolean
+    is_active = Column(Boolean, server_default=text("true"))
     kyc_status = Column(String(20), server_default="pending")  # pending, approved, rejected
+    mfa_enabled = Column(Boolean, server_default=text("false"))
+    mfa_secret = Column(String(500))
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
 class Account(Base):

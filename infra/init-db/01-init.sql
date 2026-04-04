@@ -24,7 +24,11 @@ INSERT INTO core.tenants (name, country_code, regulatory_authority, base_currenc
 ('Benin', 'BJ', 'BCEAO', 'XOF'),
 ('Guinee-Bissau', 'GW', 'BCEAO', 'XOF'),
 ('Nigeria', 'NG', 'Central Bank of Nigeria', 'NGN'),
-('Ghana', 'GH', 'Bank of Ghana', 'GHS');
+('Ghana', 'GH', 'Bank of Ghana', 'GHS'),
+('France', 'FR', 'Banque de France', 'EUR'),
+('Belgique', 'BE', 'Banque Nationale de Belgique', 'EUR'),
+('Etats-Unis', 'US', 'Federal Reserve', 'USD'),
+('Canada', 'CA', 'Bank of Canada', 'CAD');
 
 -- Fonction utilitaire pour creer toutes les tables dans un schema tenant
 CREATE OR REPLACE FUNCTION create_tenant_tables(schema_name TEXT) RETURNS VOID AS $$

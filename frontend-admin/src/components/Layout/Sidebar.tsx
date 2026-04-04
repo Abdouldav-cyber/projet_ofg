@@ -164,44 +164,54 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       {/* Logo */}
       <Box
         sx={{
+          minHeight: 80,
           px: 3,
           py: 2.5,
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
-          borderBottom: '1px solid #F1F5F9',
+          gap: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+          background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'linear-gradient(to bottom, #F8FAFC, #FFFFFF)',
         }}
       >
         <Box
           sx={{
-            width: 42,
-            height: 42,
-            borderRadius: 2.5,
-            background: 'linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)',
+            width: 44,
+            height: 44,
+            borderRadius: 3,
+            background: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
           }}
         >
-          <Typography variant="h6" sx={{ color: '#FFFFFF', fontWeight: 800, fontSize: 16 }}>
+          <Typography variant="h6" sx={{ color: '#FFFFFF', fontWeight: 800, fontSize: 18, letterSpacing: 0.5 }}>
             DB
           </Typography>
         </Box>
-        <Box>
+        <Box sx={{ flex: 1 }}>
           <Typography
             sx={{
-              fontWeight: 700,
-              color: '#1F2937',
-              fontSize: 16,
+              fontWeight: 800,
+              color: 'text.primary',
+              fontSize: 18,
+              letterSpacing: '-0.02em',
               lineHeight: 1.2,
             }}
           >
             Djembe Bank
           </Typography>
-          <Typography sx={{ color: '#94A3B8', fontSize: 11, fontWeight: 500 }}>
-            Administration
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+            <Typography sx={{ color: 'text.secondary', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Administration
+            </Typography>
+            <Box sx={{ background: 'rgba(124, 58, 237, 0.1)', px: 1, py: 0.2, borderRadius: 1 }}>
+               <Typography sx={{ color: '#7C3AED', fontSize: 9, fontWeight: 700 }}>v1.0</Typography>
+            </Box>
+          </Box>
         </Box>
       </Box>
 
@@ -250,25 +260,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </List>
       </Box>
 
-      {/* Footer */}
-      <Box
-        sx={{
-          p: 2,
-          mx: 1.5,
-          mb: 1.5,
-          borderRadius: 2,
-          background: '#F8FAFC',
-          border: '1px solid #F1F5F9',
-          textAlign: 'center',
-        }}
-      >
-        <Typography sx={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>
-          Djembe Bank v1.0.0
-        </Typography>
-        <Typography sx={{ fontSize: 10, color: '#CBD5E1' }}>
-          2026 - Tous droits reserves
-        </Typography>
-      </Box>
+
     </Box>
   )
 
@@ -284,8 +276,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           '& .MuiDrawer-paper': {
             width: SIDEBAR_WIDTH,
             boxSizing: 'border-box',
-            background: '#FFFFFF',
-            borderRight: '1px solid #E2E8F0',
+            background: 'background.paper',
+            borderRight: 1,
+            borderColor: 'divider',
           },
         }}
       >
@@ -303,9 +296,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         left: 0,
         width: SIDEBAR_WIDTH,
         height: '100vh',
-        background: '#FFFFFF',
-        borderRight: '1px solid #E2E8F0',
-        boxShadow: '2px 0 8px rgba(0, 0, 0, 0.03)',
+        background: 'background.paper',
+        borderRight: 1,
+        borderColor: 'divider',
+        boxShadow: theme.palette.mode === 'dark' ? 'none' : '2px 0 8px rgba(0, 0, 0, 0.03)',
         zIndex: theme.zIndex.drawer,
         transform: open ? 'translateX(0)' : `translateX(-${SIDEBAR_WIDTH}px)`,
         transition: theme.transitions.create('transform', {

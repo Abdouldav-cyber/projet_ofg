@@ -163,9 +163,10 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
       position="fixed"
       elevation={0}
       sx={{
-        background: 'rgba(255, 255, 255, 0.85)',
+        background: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)',
         backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid #E2E8F0',
+        borderBottom: 1,
+        borderColor: 'divider',
         transition: theme.transitions.create(['width', 'margin'], {
           easing: theme.transitions.easing.easeInOut,
           duration: theme.transitions.duration.standard,

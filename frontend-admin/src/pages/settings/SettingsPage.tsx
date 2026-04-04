@@ -18,8 +18,6 @@ import {
   PhotoCamera,
   Notifications,
   Security,
-  Language,
-  Palette,
 } from '@mui/icons-material'
 import { useMutation } from '@tanstack/react-query'
 import { useSnackbar } from 'notistack'
@@ -48,8 +46,7 @@ export default function SettingsPage() {
   const [mfaEnabled, setMfaEnabled] = useState(false)
 
   // Paramètres d'affichage
-  const [language, setLanguage] = useState('fr')
-  const [darkMode, setDarkMode] = useState(false)
+
 
   const updateProfileMutation = useMutation({
     mutationFn: async () => {
@@ -114,7 +111,7 @@ export default function SettingsPage() {
 
       <Grid container spacing={3}>
         {/* Profil */}
-        <Grid item xs={12} lg={8}>
+        <Grid item xs={12} lg={12}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={2} mb={3}>
@@ -133,15 +130,15 @@ export default function SettingsPage() {
                   {user?.last_name?.[0]}
                 </Avatar>
                 <Box>
-                  <Typography variant="h6" sx={{ color: '#1F2937', fontWeight: 600 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     Photo de profil
                   </Typography>
                   <IconButton
                     component="label"
                     sx={{
-                      color: '#6B7280',
+                      color: 'text.secondary',
                       '&:hover': {
-                        background: '#F9FAFB',
+                        background: 'rgba(0,0,0,0.04)',
                       },
                     }}
                   >
@@ -195,14 +192,10 @@ export default function SettingsPage() {
                     onClick={() => updateProfileMutation.mutate()}
                     disabled={updateProfileMutation.isPending}
                     sx={{
-                      background: '#FFFFFF',
-                      borderColor: '#E5E7EB',
-                      borderWidth: 2,
-                      color: '#1F2937',
+                      color: 'text.primary',
+                      borderColor: 'divider',
                       '&:hover': {
-                        background: '#F9FAFB',
-                        borderColor: '#D1D5DB',
-                        borderWidth: 2,
+                        borderColor: 'text.secondary',
                       },
                     }}
                   >
@@ -214,55 +207,7 @@ export default function SettingsPage() {
           </Card>
         </Grid>
 
-        {/* Préférences d'affichage */}
-        <Grid item xs={12} lg={4}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={1} mb={2}>
-                <Palette sx={{ color: '#6B7280' }} />
-                <Typography variant="h6" sx={{ color: '#1F2937', fontWeight: 600 }}>
-                  Affichage
-                </Typography>
-              </Box>
 
-              <Box display="flex" flexDirection="column" gap={2}>
-                <Box>
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
-                    <Language fontSize="small" sx={{ color: '#6B7280' }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Langue
-                    </Typography>
-                  </Box>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={language === 'en'}
-                        onChange={(e) => setLanguage(e.target.checked ? 'en' : 'fr')}
-                      />
-                    }
-                    label={language === 'fr' ? 'Français' : 'English'}
-                  />
-                </Box>
-
-                <Divider />
-
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={darkMode}
-                      onChange={(e) => setDarkMode(e.target.checked)}
-                    />
-                  }
-                  label="Mode sombre"
-                />
-
-                <Typography variant="caption" color="text.secondary">
-                  Les modifications de thème seront appliquées dans une prochaine version
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
 
         {/* Sécurité */}
         <Grid item xs={12} lg={6}>
@@ -304,14 +249,10 @@ export default function SettingsPage() {
                   onClick={() => updatePasswordMutation.mutate()}
                   disabled={!currentPassword || !newPassword || !confirmPassword || updatePasswordMutation.isPending}
                   sx={{
-                    background: '#FFFFFF',
-                    borderColor: '#E5E7EB',
-                    borderWidth: 2,
-                    color: '#1F2937',
+                    color: 'text.primary',
+                    borderColor: 'divider',
                     '&:hover': {
-                      background: '#F9FAFB',
-                      borderColor: '#D1D5DB',
-                      borderWidth: 2,
+                      borderColor: 'text.secondary',
                     },
                   }}
                 >
@@ -379,14 +320,10 @@ export default function SettingsPage() {
                   variant="outlined"
                   sx={{
                     mt: 2,
-                    background: '#FFFFFF',
-                    borderColor: '#E5E7EB',
-                    borderWidth: 2,
-                    color: '#1F2937',
+                    color: 'text.primary',
+                    borderColor: 'divider',
                     '&:hover': {
-                      background: '#F9FAFB',
-                      borderColor: '#D1D5DB',
-                      borderWidth: 2,
+                      borderColor: 'text.secondary',
                     },
                   }}
                   onClick={() => updateNotificationsMutation.mutate()}

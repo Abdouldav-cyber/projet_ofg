@@ -13,7 +13,8 @@ from app.audit import AuditLog
 from app.schemas import (
     TenantResponse, TenantCreate, UserCreate, UserResponse, Token, 
     AccountResponse, AccountCreate, TransactionResponse, TransactionCreate,
-    TontineResponse, TontineCreate, TontineMemberResponse, TontineMemberCreate
+    TontineResponse, TontineCreate, TontineMemberResponse, TontineMemberCreate,
+    OnboardingMetadataResponse, ProfileUpdate, PasswordChange
 )
 from app.security import get_password_hash, verify_password, create_access_token
 from app.tenant_manager import get_db_with_tenant
@@ -27,6 +28,42 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 async def health_check():
     """Verification de l'etat de sante du service."""
     return {"status": "healthy"}
+
+@router.get("/metadata/onboarding", response_model=OnboardingMetadataResponse, tags=["Configuration"], summary="Metadonnees d'inscription")
+def get_onboarding_metadata():
+    """Retourne la configuration initiale necessaire pour l'inscription (pays et types de compte)."""
+    return {
+        "countries": [
+            {"code": "SN", "name": "Sénégal"},
+            {"code": "CI", "name": "Côte d'Ivoire"},
+            {"code": "ML", "name": "Mali"},
+            {"code": "BF", "name": "Burkina Faso"},
+            {"code": "FR", "name": "France"},
+            {"code": "BE", "name": "Belgique"},
+            {"code": "US", "name": "États-Unis"},
+            {"code": "CA", "name": "Canada"}
+        ],
+        "account_types": [
+            {
+                "id": "courant",
+                "name": "Compte Courant",
+                "price": "Gratuit",
+                "description": "Usage personnel"
+            },
+            {
+                "id": "diaspora",
+                "name": "Compte Diaspora",
+                "price": "4,99€/mois",
+                "description": "Transferts internationaux"
+            },
+            {
+                "id": "business",
+                "name": "Compte Pro / PME",
+                "price": "9,99€/mois",
+                "description": "Outils business"
+            }
+        ]
+    }
 
 # --- UTILISATEURS & AUTHENTIFICATION ---
 
@@ -143,6 +180,71 @@ def get_current_user_endpoint(token: str = Depends(oauth2_scheme), db: Session =
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+@router.patch("/auth/profile", response_model=UserResponse, tags=["Authentification"], summary="Mettre à jour le profil")
+def update_profile(profile_data: ProfileUpdate, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
+    """Met à jour les informations du profil de l'utilisateur connecté."""
+    from jose import jwt, JWTError
+    from app.config import settings
+
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
+            
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+            
+        if profile_data.first_name is not None:
+            user.first_name = profile_data.first_name
+        if profile_data.last_name is not None:
+            user.last_name = profile_data.last_name
+        if profile_data.phone is not None:
+            user.phone = profile_data.phone
+            
+        db.commit()
+        db.refresh(user)
+        
+        # Ajout tenant_id pour la réponse
+        setattr(user, 'tenant_id', payload.get("tenant_id"))
+        return user
+        
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token invalide")
+
+@router.post("/auth/change-password", tags=["Authentification"], summary="Changer le mot de passe")
+def change_password(pwd_data: PasswordChange, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
+    """Modifie le mot de passe de l'utilisateur connecté."""
+    from jose import jwt, JWTError
+    from app.config import settings
+    
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
+            
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+            
+        # Vérification de l'ancien mot de passe
+        if not verify_password(pwd_data.current_password, user.password_hash):
+            raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect")
+            
+        # Hachage et sauvegarde du nouveau mot de passe
+        user.password_hash = get_password_hash(pwd_data.new_password)
+        db.commit()
+        
+        # Audit Log
+        db.add(AuditLog(user_id=user.id, action="PASSWORD_CHANGE", resource_type="users", resource_id=str(user.id)))
+        db.commit()
+        
+        return {"message": "Mot de passe modifié avec succès"}
+        
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token invalide")
 
 # --- MULTI-FACTOR AUTHENTICATION (MFA) ---
 
@@ -579,5 +681,52 @@ def test_sms(phone: str):
     """Teste l'envoi de SMS via Twilio."""
     from app.notifications import NotificationService
     notifier = NotificationService()
+    notifier = NotificationService()
     success = notifier.send_sms(phone, "Ceci est un test de sécurité Djembé Bank.")
     return {"success": success}
+
+# --- CONVERSION ET DEVISES ---
+
+@router.get("/currency/rates", tags=["Devises"], summary="Taux de change")
+def get_exchange_rates(base: str = "XOF"):
+    """Renvoie les taux de change factices par rapport à une devise de base."""
+    # Taux simulés autour de XOF
+    mock_rates_from_xof = {
+        "EUR": 0.0015,
+        "USD": 0.0017,
+        "CAD": 0.0023,
+        "GBP": 0.0013,
+        "GNF": 14.15,
+    }
+    
+    if base != "XOF":
+        return {"base": base, "rates": {}}
+        
+    return {"base": base, "rates": mock_rates_from_xof, "timestamp": "2026-04-03T12:00:00Z"}
+
+@router.post("/currency/convert", tags=["Devises"], summary="Convertir un montant")
+def convert_currency(amount: float, from_currency: str, to_currency: str):
+    """Convertit un montant d'une devise à une autre en utilisant les taux de base."""
+    # Simulation d'un convertisseur simple pour la maquette
+    rate = 1.0
+    
+    # Simple conversion XOF -> EUR (approx 1 EUR = 655.957 XOF)
+    if from_currency == "XOF" and to_currency == "EUR":
+        rate = 0.001524
+    elif from_currency == "EUR" and to_currency == "XOF":
+        rate = 655.957
+    elif from_currency == "XOF" and to_currency == "USD":
+        rate = 0.0017
+    elif from_currency == "USD" and to_currency == "XOF":
+        rate = 588.0
+        
+    result = amount * rate
+    
+    return {
+        "success": True,
+        "from": from_currency,
+        "to": to_currency,
+        "amount": amount,
+        "result": round(result, 2),
+        "rate": rate
+    }
