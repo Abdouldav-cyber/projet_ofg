@@ -13,21 +13,11 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeContextProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>(() => {
-    const savedMode = localStorage.getItem('themeMode')
-    if (savedMode === 'dark' || savedMode === 'light') {
-      return savedMode
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  })
+  const [mode, setMode] = useState<ThemeMode>('light')
 
   useEffect(() => {
-    localStorage.setItem('themeMode', mode)
-    if (mode === 'dark') {
-      document.body.style.backgroundColor = '#0F172A' // theme dark bg
-    } else {
-      document.body.style.backgroundColor = '#F8FAFC' // theme light bg
-    }
+    localStorage.setItem('themeMode', 'light')
+    document.body.style.backgroundColor = '#F8FAFC' // theme light bg
   }, [mode])
 
   const toggleTheme = () => {

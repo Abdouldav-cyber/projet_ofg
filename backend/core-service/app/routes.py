@@ -7,15 +7,21 @@ from pydantic import UUID4
 from decimal import Decimal
 from sqlalchemy import or_
 from app.database import get_db, get_db_with_tenant_code, oauth2_scheme
-from app.models import Tenant, User, Account, AccountBalance, Transaction, Tontine, TontineMember
+from app.models import Tenant, User, Account, AccountBalance, Transaction, Tontine, TontineMember, Card, SavingsGoal, Friendship, Referral
 from app.kyc import KYCDocument
 from app.audit import AuditLog
 from app.schemas import (
     TenantResponse, TenantCreate, UserCreate, UserResponse, Token, 
     AccountResponse, AccountCreate, TransactionResponse, TransactionCreate,
     TontineResponse, TontineCreate, TontineMemberResponse, TontineMemberCreate,
-    OnboardingMetadataResponse, ProfileUpdate, PasswordChange
+    OnboardingMetadataResponse, ProfileUpdate, PasswordChange,
+    CardCreate, CardResponse, CardSettingsUpdate, CardRevealResponse,
+    SavingsGoalCreate, SavingsGoalResponse,
+    FriendshipCreate, FriendshipResponse, ReferralResponse
 )
+from app.encryption import encrypt_field, decrypt_field
+import random
+from datetime import date, timedelta
 from app.security import get_password_hash, verify_password, create_access_token
 from app.tenant_manager import get_db_with_tenant
 from app.fraud import FraudDetectionEngine
@@ -730,3 +736,153 @@ def convert_currency(amount: float, from_currency: str, to_currency: str):
         "result": round(result, 2),
         "rate": rate
     }
+
+# --- MODULE CARTES BANCAIRES ---
+
+def _get_user_id_from_token(token: str) -> str:
+    from jose import jwt, JWTError
+    from app.config import settings
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        return payload.get("user_id")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token JWT invalide")
+
+@router.post("/cards", response_model=CardResponse, tags=["Cartes"], summary="Emettre une carte")
+def create_card(card_data: CardCreate, db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    user_id = _get_user_id_from_token(token)
+    
+    # Verifier si le compte appartient a l'user
+    account = db.query(Account).filter(Account.id == card_data.account_id, Account.user_id == user_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Compte bancaire non trouve")
+
+    # Generation de la carte (Maths & Crypto)
+    pan_prefix = "555555" # BIN Mastercard Djembe Bank
+    pan_suffix = "".join([str(random.randint(0, 9)) for _ in range(10)])
+    full_pan = f"{pan_prefix}{pan_suffix}"
+    
+    cvv = f"{random.randint(100, 999)}"
+    exp_date = date.today() + timedelta(days=3*365) # 3 ans
+    
+    # Securite AES
+    pan_encrypted = encrypt_field(full_pan)
+    cvv_encrypted = encrypt_field(cvv)
+    
+    new_card = Card(
+        account_id=account.id,
+        card_type=card_data.card_type,
+        last_4_digits=full_pan[-4:],
+        card_number_hash=pan_encrypted,
+        cvv_hash=cvv_encrypted,
+        expiry_date=exp_date,
+        status="active" if card_data.card_type == "virtual" else "pending"
+    )
+    db.add(new_card)
+    db.commit()
+    db.refresh(new_card)
+    return new_card
+
+@router.get("/cards", response_model=List[CardResponse], tags=["Cartes"], summary="Mes Cartes")
+def list_cards(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    user_id = _get_user_id_from_token(token)
+    accounts = db.query(Account.id).filter(Account.user_id == user_id).subquery()
+    return db.query(Card).filter(Card.account_id.in_(accounts)).all()
+
+@router.post("/cards/{card_id}/reveal", response_model=CardRevealResponse, tags=["Cartes"], summary="Revéler numero")
+def reveal_card(card_id: UUID4, db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    user_id = _get_user_id_from_token(token)
+    card = db.query(Card).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(404, "Carte introuvable")
+    # Validation possession...
+    account = db.query(Account).filter(Account.id == card.account_id, Account.user_id == user_id).first()
+    if not account:
+        raise HTTPException(403, "Accès interdit")
+
+    return {
+        "card_number": decrypt_field(card.card_number_hash),
+        "cvv": decrypt_field(card.cvv_hash),
+        "expiry_date": card.expiry_date
+    }
+
+@router.patch("/cards/{card_id}/settings", tags=["Cartes"], summary="Paramètres carte")
+def update_card_settings(card_id: UUID4, settings: CardSettingsUpdate, db: Session = Depends(get_db_with_tenant)):
+    card = db.query(Card).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(404, "Carte introuvable")
+    
+    update_data = settings.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(card, key, value)
+    db.commit()
+    return {"message": "Paramètres mis à jour"}
+
+# --- MODULE BUDGET ---
+
+@router.get("/statistics/budget", tags=["Budget", "Statistiques"], summary="Statistiques de budget")
+def get_budget_stats(month: int, year: int, db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    user_id = _get_user_id_from_token(token)
+    # Aggregation fictive ou reelle des transactions "debits"
+    accounts = db.query(Account.id).filter(Account.user_id == user_id).subquery()
+    transactions = db.query(Transaction).filter(Transaction.from_account_id.in_(accounts)).all()
+    
+    # Categorisation basique
+    categories = {"Shopping": 0, "Alimentation": 0, "Transport": 0, "Loisirs": 0, "Général": 0}
+    total = 0
+    for t in transactions:
+        amount_val = float(t.amount)
+        categories[t.category if t.category in categories else "Général"] += amount_val
+        total += amount_val
+        
+    return {
+        "total_spent": total,
+        "categories": categories,
+        "currency": "XOF"
+    }
+
+# --- MODULE EPARGNE ---
+
+@router.post("/savings-goals", response_model=SavingsGoalResponse, tags=["Epargne"], summary="Créer objectif")
+def create_savings_goal(goal: SavingsGoalCreate, db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    user_id = _get_user_id_from_token(token)
+    # Verifier account
+    new_goal = SavingsGoal(**goal.model_dump())
+    db.add(new_goal)
+    db.commit()
+    db.refresh(new_goal)
+    return new_goal
+
+@router.get("/savings-goals", tags=["Epargne"], summary="Liste objectifs")
+def list_savings_goals(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    user_id = _get_user_id_from_token(token)
+    accounts = db.query(Account.id).filter(Account.user_id == user_id).subquery()
+    goals = db.query(SavingsGoal).filter(SavingsGoal.account_id.in_(accounts)).all()
+    
+    results = []
+    for g in goals:
+        obj = g.__dict__.copy()
+        # Mock calculation: available funds in savings account
+        balance = db.query(AccountBalance).filter(AccountBalance.account_id == g.account_id).first()
+        available = float(balance.available) if balance else 0.0
+        obj['current_amount'] = available
+        obj['progress_percentage'] = round((available / float(g.target_amount)) * 100, 2) if g.target_amount > 0 else 0
+        results.append(obj)
+    return results
+
+# --- MODULE CERCLE SOCIAL ---
+
+@router.get("/circle/friends", tags=["Cercle"], summary="Amis frequents")
+def list_friends(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    user_id = _get_user_id_from_token(token)
+    friends = db.query(Friendship).filter(Friendship.user_id == user_id).all()
+    # Enrichir avec la DB
+    results = []
+    for f in friends:
+        contact = db.query(User).filter(User.id == f.contact_user_id).first()
+        if contact:
+            data = f.__dict__.copy()
+            data['contact_first_name'] = contact.first_name
+            data['contact_last_name'] = contact.last_name
+            results.append(data)
+    return results

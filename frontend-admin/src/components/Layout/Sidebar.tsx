@@ -26,6 +26,9 @@ import {
   Public,
   CurrencyExchange,
   NotificationsActive,
+  CreditCard,
+  TrendingUp,
+  Diversity3,
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -55,9 +58,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { text: 'Tableau de bord', icon: <Dashboard />, path: '/dashboard', color: '#7C3AED' },
     { text: 'Utilisateurs', icon: <People />, path: '/users', permission: 'users:read', color: '#10B981' },
     { text: 'Comptes', icon: <AccountBalance />, path: '/accounts', permission: 'accounts:read', color: '#3B82F6' },
+    { text: 'Cartes Bancaires', icon: <CreditCard />, path: '/cards', color: '#0F172A' },
     { text: 'Transactions', icon: <Receipt />, path: '/transactions', permission: 'transactions:read', color: '#F59E0B' },
     { text: 'Validation KYC', icon: <VerifiedUser />, path: '/kyc', permission: 'kyc:approve', color: '#8B5CF6' },
     { text: 'Tontines', icon: <Savings />, path: '/tontines', permission: 'tontines:read', color: '#14B8A6' },
+    { text: 'Épargne', icon: <TrendingUp />, path: '/savings', color: '#84CC16' },
+    { text: 'Réseau Social', icon: <Diversity3 />, path: '/circle', color: '#EC4899' },
     { text: 'Support', icon: <Support />, path: '/support', permission: 'tickets:update', color: '#EF4444' },
     { text: 'Rapports', icon: <Assessment />, path: '/reports', permission: 'reports:generate', color: '#6366F1' },
     { text: 'Audit Logs', icon: <History />, path: '/audit-logs', permission: 'audit:read', color: '#64748B' },
@@ -98,26 +104,32 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               borderRadius: 2,
               py: 1.2,
               px: 1.5,
+              position: 'relative',
               transition: 'all 0.2s ease',
               ...(active
                 ? {
-                    background: alpha(item.color, 0.08),
-                    '&:hover': {
-                      background: alpha(item.color, 0.12),
-                    },
+                    background: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                    borderRight: `3px solid ${theme.palette.primary.main}`,
                     '& .MuiListItemIcon-root': {
-                      color: item.color,
+                      color: theme.palette.primary.main,
                     },
                     '& .MuiListItemText-primary': {
-                      color: '#1F2937',
                       fontWeight: 600,
+                    },
+                    '&:hover': {
+                      background: alpha(theme.palette.primary.main, 0.15),
                     },
                   }
                 : {
+                    color: '#64748B',
                     '&:hover': {
-                      backgroundColor: '#F1F5F9',
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)',
                       '& .MuiListItemIcon-root': {
-                        color: item.color,
+                        color: theme.palette.primary.main,
+                      },
+                      '& .MuiListItemText-primary': {
+                        color: theme.palette.text.primary,
                       },
                     },
                   }),
@@ -126,7 +138,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <ListItemIcon
               sx={{
                 minWidth: 38,
-                color: item.color,
+                color: active ? theme.palette.primary.main : item.color,
                 '& svg': {
                   fontSize: 21,
                 },
@@ -139,8 +151,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               primaryTypographyProps={{
                 fontSize: 13.5,
                 fontWeight: active ? 600 : 500,
-                color: active ? '#1F2937' : '#64748B',
-                letterSpacing: 0.1,
+                color: active ? theme.palette.primary.main : '#64748B',
               }}
             />
             {active && (
@@ -172,7 +183,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           gap: 2,
           borderBottom: 1,
           borderColor: 'divider',
-          background: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.3)' : 'linear-gradient(to bottom, #F8FAFC, #FFFFFF)',
+          bgcolor: 'background.paper',
         }}
       >
         <Box
@@ -216,11 +227,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </Box>
 
       {/* Menu principal */}
-      <Box sx={{ flex: 1, overflow: 'auto', pt: 2 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', pt: 2, background: 'background.paper' }}>
         <Typography
           variant="caption"
           sx={{
-            color: '#94A3B8',
+            color: '#6B7280',
             fontWeight: 600,
             textTransform: 'uppercase',
             letterSpacing: 1.2,
@@ -237,12 +248,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           {renderMenuItems(menuItems)}
         </List>
 
-        <Divider sx={{ mx: 2.5, my: 1.5, borderColor: '#F1F5F9' }} />
+        <Divider sx={{ mx: 2.5, my: 1.5, borderColor: 'divider' }} />
 
         <Typography
           variant="caption"
           sx={{
-            color: '#94A3B8',
+            color: '#6B7280',
             fontWeight: 600,
             textTransform: 'uppercase',
             letterSpacing: 1.2,
@@ -299,7 +310,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         background: 'background.paper',
         borderRight: 1,
         borderColor: 'divider',
-        boxShadow: theme.palette.mode === 'dark' ? 'none' : '2px 0 8px rgba(0, 0, 0, 0.03)',
+        boxShadow: 'none',
         zIndex: theme.zIndex.drawer,
         transform: open ? 'translateX(0)' : `translateX(-${SIDEBAR_WIDTH}px)`,
         transition: theme.transitions.create('transform', {

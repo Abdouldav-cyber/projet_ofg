@@ -1,5 +1,5 @@
 from pydantic import BaseModel, UUID4, Field
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List
 
 class AccountTypeMetadata(BaseModel):
@@ -247,3 +247,91 @@ class ChatMessageResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# --- CARTES BANCAIRES ---
+
+class CardCreate(BaseModel):
+    account_id: UUID4
+    card_type: str = Field(..., description="physical or virtual")
+
+class CardResponse(BaseModel):
+    id: UUID4
+    account_id: UUID4
+    card_type: str
+    last_4_digits: str
+    expiry_date: date
+    status: str
+    daily_limit: float
+    monthly_limit: float
+    apple_pay_enabled: bool
+    contactless_enabled: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CardSettingsUpdate(BaseModel):
+    daily_limit: Optional[float] = None
+    monthly_limit: Optional[float] = None
+    apple_pay_enabled: Optional[bool] = None
+    contactless_enabled: Optional[bool] = None
+
+class CardRevealResponse(BaseModel):
+    card_number: str
+    cvv: str
+    expiry_date: date
+
+# --- EPARGNE ---
+
+class SavingsGoalCreate(BaseModel):
+    account_id: UUID4
+    name: str
+    target_amount: float
+    deadline: Optional[date] = None
+
+class SavingsGoalResponse(BaseModel):
+    id: UUID4
+    account_id: UUID4
+    name: str
+    target_amount: float
+    current_amount: float = 0.0 # Calculé dynamiquement par l'API
+    deadline: Optional[date]
+    status: str
+    created_at: datetime
+    progress_percentage: float = 0.0 # Calculé dynamiquement
+
+    class Config:
+        from_attributes = True
+
+# --- CERCLE SOCIAL ---
+
+class FriendshipCreate(BaseModel):
+    contact_user_id: UUID4
+
+class FriendshipResponse(BaseModel):
+    id: UUID4
+    user_id: UUID4
+    contact_user_id: UUID4
+    is_favorite: bool
+    status: str
+    created_at: datetime
+    
+    # Détails du contact (ajouté dynamiquement par l'API lors du GET)
+    contact_first_name: Optional[str] = None
+    contact_last_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ReferralResponse(BaseModel):
+    id: UUID4
+    referrer_id: UUID4
+    referred_id: UUID4
+    reward_amount: float
+    currency: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

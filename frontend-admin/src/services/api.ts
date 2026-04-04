@@ -540,7 +540,60 @@ class ApiService {
     const response = await this.api.get('/api/v1/health')
     return response.data
   }
-}
+  // ----- MODULES ADDITIONNELS (Cards, Savings, Circle) -----
+  async getAdminCards(params?: { status?: string, page?: number, page_size?: number }) {
+    const response = await this.api.get('/api/v1/admin/cards', { 
+      params: { 
+        status: params?.status,
+        offset: params?.page && params?.page_size ? (params.page - 1) * params.page_size : 0,
+        limit: params?.page_size 
+      } 
+    })
+    return response.data
+  }
 
+  async freezeAdminCard(cardId: string, reason: string) {
+    const response = await this.api.post(`/api/v1/admin/cards/${cardId}/freeze`, null, { params: { reason } })
+    return response.data
+  }
+
+  async activateAdminCard(cardId: string) {
+    const response = await this.api.post(`/api/v1/admin/cards/${cardId}/activate`)
+    return response.data
+  }
+
+  async deleteAdminCard(cardId: string) {
+    const response = await this.api.delete(`/api/v1/admin/cards/${cardId}`)
+    return response.data
+  }
+
+  async createAdminCard(accountId: string, cardType: string) {
+    const response = await this.api.post('/api/v1/admin/cards', {
+      account_id: accountId,
+      card_type: cardType
+    })
+    return response.data
+  }
+
+  async getAdminSavings(params?: { page?: number, page_size?: number }) {
+    const response = await this.api.get('/api/v1/admin/savings-goals', {
+      params: {
+        offset: params?.page && params?.page_size ? (params.page - 1) * params.page_size : 0,
+        limit: params?.page_size
+      }
+    })
+    return response.data
+  }
+
+  async getAdminCircle(params?: { page?: number, page_size?: number }) {
+    const response = await this.api.get('/api/v1/admin/circle', {
+      params: {
+        offset: params?.page && params?.page_size ? (params.page - 1) * params.page_size : 0,
+        limit: params?.page_size
+      }
+    })
+    return response.data
+  }
+}
 export const apiService = new ApiService()
 export default apiService

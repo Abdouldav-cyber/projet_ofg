@@ -82,6 +82,8 @@ class Transaction(Base):
     currency = Column(String(3), nullable=False)
     reference = Column(String(140))
     transaction_type = Column(String(50), nullable=False) # internal, international, p2p
+    category = Column(String(50), server_default="other") # Shopping, Alimentation, Loisirs, Transport...
+    vendor_name = Column(String(100)) # Ex: Spotify, Carrefour
     status = Column(String(20), server_default="pending") # pending, completed, failed, reversed
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
@@ -158,3 +160,62 @@ class ChatMessage(Base):
     file_url = Column(String(500))  # URL de pièce jointe (optionnel)
     is_read = Column(JSON, server_default=text("'false'"))  # Lu par le destinataire
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class Card(Base):
+    """Cartes bancaires (virtuelles et physiques)."""
+    __tablename__ = "cards"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    account_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    card_type = Column(String(20), nullable=False) # physical, virtual
+    last_4_digits = Column(String(4), nullable=False)
+    card_number_hash = Column(String(500), nullable=False) # Chiffré AES
+    cvv_hash = Column(String(500), nullable=False) # CVV chiffré
+    expiry_date = Column(Date, nullable=False)
+    pin_hash = Column(String(255)) # Code PIN hashé (pour validation au DAB)
+    status = Column(String(20), server_default="active") # active, pending, locked, expired
+    daily_limit = Column(JSON, server_default=text("'1000'"))
+    monthly_limit = Column(JSON, server_default=text("'5000'"))
+    apple_pay_enabled = Column(Boolean, server_default=text("false"))
+    contactless_enabled = Column(Boolean, server_default=text("true"))
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class SavingsGoal(Base):
+    """Objectifs d'épargne (Voyage, Urgence, etc.)."""
+    __tablename__ = "savings_goals"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    account_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    target_amount = Column(JSON, nullable=False)
+    deadline = Column(Date)
+    status = Column(String(20), server_default="active") # active, completed, cancelled
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class Friendship(Base):
+    """Contacts sociaux (Carnet d'adresses réseau Djembé)."""
+    __tablename__ = "friendships"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    contact_user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    is_favorite = Column(Boolean, server_default=text("false"))
+    status = Column(String(20), server_default="accepted") # pending, accepted, blocked
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class Referral(Base):
+    """Système de parrainage client."""
+    __tablename__ = "referrals"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    referrer_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    referred_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    reward_amount = Column(JSON, nullable=False)
+    currency = Column(String(3), server_default="XOF")
+    status = Column(String(20), server_default="pending") # pending, paid
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+

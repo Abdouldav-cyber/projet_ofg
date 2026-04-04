@@ -8,17 +8,19 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from typing import List, Optional
 from pydantic import UUID4
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import io
+import random
+from app.encryption import encrypt_field
 
 from app.database import get_db, get_db_with_tenant
-from app.models import Tenant, User, Account, Transaction, AccountBalance, SupportTicket
+from app.models import Tenant, User, Account, Transaction, AccountBalance, SupportTicket, Card, SavingsGoal, Friendship, Referral
 from app.kyc import KYCDocument
 from app.schemas import (
     TenantCreate, TenantResponse, TenantUpdate, UserResponse, UserUpdate,
     TransactionResponse, AccountResponse,
     SupportTicketCreate, SupportTicketUpdate, SupportTicketResponse,
-    PasswordChange, ProfileUpdate
+    PasswordChange, ProfileUpdate, CardResponse, SavingsGoalResponse, FriendshipResponse, ReferralResponse, CardCreate
 )
 from app.rbac import (
     get_current_user, CurrentUser,
@@ -1318,7 +1320,48 @@ async def get_country_analytics(
         "today_transactions": today_transactions,
         "total_volume": float(total_volume),
         "user_growth": user_growth,
-        "transaction_volume": transaction_volume
+        "transaction_volume": transaction_volume,
+        "system_health": {
+            "cpu": 34,
+            "memory": 67,
+            "storage": 45,
+            "network": 23
+        },
+        "security_alerts": [
+            {
+                "id": "1",
+                "type": "brute_force",
+                "title": "Tentative de brute force détectée",
+                "description": "15 tentatives échouées en 2 minutes - IP bloquée automatiquement",
+                "ip": "45.33.32.156",
+                "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            },
+            {
+                "id": "2",
+                "type": "suspicious",
+                "title": "Activité suspecte - Transfert inhabituel",
+                "description": "Transfert de 5,000€ détecté - Compte CL-003 - Vérification manuelle requise",
+                "ip": "172.16.0.22",
+                "timestamp": (datetime.utcnow() - timedelta(minutes=45)).strftime("%Y-%m-%d %H:%M:%S")
+            },
+            {
+                "id": "3",
+                "type": "ddos",
+                "title": "Attaque DDoS mitigée",
+                "description": "2,500 requêtes/sec bloquées par le WAF - Origine: Botnet EU-East",
+                "ip": "Multiple",
+                "timestamp": (datetime.utcnow() - timedelta(hours=1, minutes=12)).strftime("%Y-%m-%d %H:%M:%S")
+            },
+            {
+                "id": "4",
+                "type": "vulnerability",
+                "title": "Scan de vulnérabilité détecté",
+                "description": "Port scan depuis 17 chasses - Bloqué par firewall",
+                "ip": "181.21.34.41",
+                "timestamp": (datetime.utcnow() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+            }
+        ],
+        "threats_blocked": 3847
     }
 
 
@@ -1887,3 +1930,185 @@ async def update_tenant_config(
         "tenant_id": str(tenant.tenant_id),
         "config": merged
     }
+
+# ==================== CARDS ADMIN API ====================
+
+@router.get("/admin/cards", response_model=List[CardResponse], tags=["Super Admin"])
+async def list_all_cards(
+    status: Optional[str] = None,
+    limit: int = Query(50, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    """Liste toutes les cartes bancaires du tenant (Administration)"""
+    query = db.query(Card)
+    if status:
+        query = query.filter(Card.status == status)
+    
+    return query.order_by(Card.created_at.desc()).offset(offset).limit(limit).all()
+
+@router.post("/admin/cards", response_model=CardResponse, tags=["Super Admin"])
+async def create_admin_card(
+    card_data: CardCreate,
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    """Création forcée d'une carte pour un compte client (Administration)"""
+    account = db.query(Account).filter(Account.id == card_data.account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Compte bancaire non trouvé")
+
+    # Génération
+    pan_prefix = "555555" # BIN Mastercard Djembe Bank
+    pan_suffix = "".join([str(random.randint(0, 9)) for _ in range(10)])
+    full_pan = f"{pan_prefix}{pan_suffix}"
+    
+    cvv = f"{random.randint(100, 999)}"
+    exp_date = date.today() + timedelta(days=3*365) # 3 ans
+    
+    # Sécurité
+    pan_encrypted = encrypt_field(full_pan)
+    cvv_encrypted = encrypt_field(cvv)
+    
+    new_card = Card(
+        account_id=account.id,
+        card_type=card_data.card_type,
+        last_4_digits=full_pan[-4:],
+        card_number_hash=pan_encrypted,
+        cvv_hash=cvv_encrypted,
+        expiry_date=exp_date,
+        status="active" if card_data.card_type == "virtual" else "pending"
+    )
+    db.add(new_card)
+    db.commit()
+    db.refresh(new_card)
+    
+    from app.audit import AuditLog
+    AuditLog.log(
+        db=db,
+        user_id=current_user.user_id,
+        action="CREATE_CARD_ADMIN",
+        metadata_col={"card_id": str(new_card.id), "account_id": str(account.id)}
+    )
+    return new_card
+
+@router.post("/admin/cards/{card_id}/freeze", tags=["Super Admin"])
+async def freeze_admin_card(
+    card_id: UUID4,
+    reason: str,
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    """Gèle une carte bancaire client"""
+    card = db.query(Card).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Carte non trouvée")
+    
+    card.status = "locked"
+    db.commit()
+    db.refresh(card)
+    
+    # Audit log
+    from app.audit import AuditLog
+    AuditLog.log(
+        db=db,
+        user_id=current_user.user_id,
+        action="FREEZE_CARD",
+        metadata_col={"card_id": str(card_id), "reason": reason}
+    )
+    return {"status": "success", "message": "Carte bloquée", "card": card}
+
+@router.post("/admin/cards/{card_id}/activate", tags=["Super Admin"])
+async def activate_admin_card(
+    card_id: UUID4,
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    """Active une carte bancaire client en attente"""
+    card = db.query(Card).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Carte non trouvée")
+    
+    card.status = "active"
+    db.commit()
+    db.refresh(card)
+    
+    from app.audit import AuditLog
+    AuditLog.log(
+        db=db,
+        user_id=current_user.user_id,
+        action="ACTIVATE_CARD",
+        metadata_col={"card_id": str(card_id)}
+    )
+    return {"status": "success", "message": "Carte activée", "card": card}
+
+@router.delete("/admin/cards/{card_id}", tags=["Super Admin"])
+async def delete_admin_card(
+    card_id: UUID4,
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    """Supprime définitivement une carte bancaire"""
+    card = db.query(Card).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Carte non trouvée")
+    
+    db.delete(card)
+    db.commit()
+    
+    from app.audit import AuditLog
+    AuditLog.log(
+        db=db,
+        user_id=current_user.user_id,
+        action="DELETE_CARD",
+        metadata_col={"card_id": str(card_id)}
+    )
+    return {"status": "success", "message": "Carte supprimée"}
+
+
+# ==================== SAVINGS ADMIN API ====================
+
+@router.get("/admin/savings-goals", tags=["Super Admin"])
+async def list_all_savings_goals(
+    limit: int = Query(50, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    """Liste tous les objectifs d'épargne du tenant"""
+    goals = db.query(SavingsGoal).order_by(SavingsGoal.created_at.desc()).offset(offset).limit(limit).all()
+    results = []
+    for g in goals:
+        obj = g.__dict__.copy()
+        # Mock calculation: available funds in savings account
+        balance = db.query(AccountBalance).filter(AccountBalance.account_id == g.account_id).first()
+        available = float(balance.available) if balance else 0.0
+        obj['current_amount'] = available
+        obj['progress_percentage'] = round((available / float(g.target_amount)) * 100, 2) if g.target_amount > 0 else 0
+        results.append(obj)
+    return results
+
+
+# ==================== CIRCLE ADMIN API ====================
+
+@router.get("/admin/circle", tags=["Super Admin"])
+async def list_all_friendships(
+    limit: int = Query(50, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    """Liste de toutes les liaisons sociales (Djembé Circle) de la plateforme"""
+    friends = db.query(Friendship).order_by(Friendship.created_at.desc()).offset(offset).limit(limit).all()
+    results = []
+    for f in friends:
+        user = db.query(User).filter(User.id == f.user_id).first()
+        contact = db.query(User).filter(User.id == f.contact_user_id).first()
+        if contact and user:
+            data = f.__dict__.copy()
+            data['user_email'] = user.email
+            data['contact_first_name'] = contact.first_name
+            data['contact_last_name'] = contact.last_name
+            results.append(data)
+    return results

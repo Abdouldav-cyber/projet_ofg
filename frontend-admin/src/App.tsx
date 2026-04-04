@@ -19,6 +19,9 @@ import SettingsPage from './pages/settings/SettingsPage'
 import TenantsPage from './pages/tenants/TenantsPage'
 import CurrencyPage from './pages/currency/CurrencyPage'
 import NotificationsPage from './pages/notifications/NotificationsPage'
+import CardsPage from './pages/cards/CardsPage'
+import SavingsPage from './pages/savings/SavingsPage'
+import CirclePage from './pages/circle/CirclePage'
 
 function App() {
   return (
@@ -42,6 +45,9 @@ function App() {
                       <Route path="/transactions/*" element={<TransactionsPage />} />
                       <Route path="/kyc/*" element={<KYCPage />} />
                       <Route path="/tontines/*" element={<TontinesPage />} />
+                      <Route path="/cards" element={<CardsPage />} />
+                      <Route path="/savings" element={<SavingsPage />} />
+                      <Route path="/circle" element={<CirclePage />} />
                       <Route path="/support/*" element={<SupportPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
                       <Route path="/audit-logs" element={<AuditLogsPage />} />
