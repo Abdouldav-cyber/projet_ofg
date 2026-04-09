@@ -17,7 +17,8 @@ from app.schemas import (
     OnboardingMetadataResponse, ProfileUpdate, PasswordChange,
     CardCreate, CardResponse, CardSettingsUpdate, CardRevealResponse,
     SavingsGoalCreate, SavingsGoalResponse,
-    FriendshipCreate, FriendshipResponse, ReferralResponse
+    FriendshipCreate, FriendshipResponse, ReferralResponse,
+    ClientInvestmentResponse, InvestmentProjectResponse
 )
 from app.encryption import encrypt_field, decrypt_field
 import random
@@ -820,7 +821,7 @@ def update_card_settings(card_id: UUID4, settings: CardSettingsUpdate, db: Sessi
 
 # --- MODULE BUDGET ---
 
-@router.get("/statistics/budget", tags=["Budget", "Statistiques"], summary="Statistiques de budget")
+@router.get("/statistics/budget", tags=["Budget"], summary="Statistiques de budget")
 def get_budget_stats(month: int, year: int, db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
     user_id = _get_user_id_from_token(token)
     # Aggregation fictive ou reelle des transactions "debits"
@@ -889,13 +890,13 @@ def list_friends(db: Session = Depends(get_db_with_tenant), token: str = Depends
 
 # --- MODULE INVESTISSEMENTS ---
 
-@router.get("/client/investments/projects", tags=["Investissements"])
+@router.get("/client/investments/projects", response_model=List[InvestmentProjectResponse], tags=["Investissements"])
 def list_investment_projects(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
     from app.models import InvestmentProject
     projects = db.query(InvestmentProject).filter(InvestmentProject.status == "open").all()
     return projects
 
-@router.post("/client/investments/projects/{project_id}/invest", tags=["Investissements"])
+@router.post("/client/investments/projects/{project_id}/invest", response_model=ClientInvestmentResponse, tags=["Investissements"])
 def invest_in_project(project_id: UUID4, payload: dict, db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
     """Investir dans un projet depuis son solde principal via API."""
     from app.models import InvestmentProject, ClientInvestment, Account, AccountBalance
@@ -931,7 +932,7 @@ def invest_in_project(project_id: UUID4, payload: dict, db: Session = Depends(ge
     db.refresh(inv)
     return inv
 
-@router.get("/client/investments/my-portfolio", tags=["Investissements"])
+@router.get("/client/investments/my-portfolio", response_model=List[ClientInvestmentResponse], tags=["Investissements"])
 def my_portfolio(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
     from app.models import ClientInvestment, InvestmentProject
     user_id = _get_user_id_from_token(token)
