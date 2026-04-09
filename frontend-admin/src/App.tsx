@@ -21,6 +21,7 @@ import CurrencyPage from './pages/currency/CurrencyPage'
 import NotificationsPage from './pages/notifications/NotificationsPage'
 import CardsPage from './pages/cards/CardsPage'
 import SavingsPage from './pages/savings/SavingsPage'
+import InvestmentsPage from './pages/investments/InvestmentsPage'
 import CirclePage from './pages/circle/CirclePage'
 
 function App() {
@@ -47,6 +48,7 @@ function App() {
                       <Route path="/tontines/*" element={<TontinesPage />} />
                       <Route path="/cards" element={<CardsPage />} />
                       <Route path="/savings" element={<SavingsPage />} />
+                      <Route path="/investments" element={<InvestmentsPage />} />
                       <Route path="/circle" element={<CirclePage />} />
                       <Route path="/support/*" element={<SupportPage />} />
                       <Route path="/reports" element={<ReportsPage />} />

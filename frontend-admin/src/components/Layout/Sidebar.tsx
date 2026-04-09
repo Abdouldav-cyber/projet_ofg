@@ -29,6 +29,7 @@ import {
   CreditCard,
   TrendingUp,
   Diversity3,
+  PieChart,
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -63,6 +64,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { text: 'Validation KYC', icon: <VerifiedUser />, path: '/kyc', permission: 'kyc:approve', color: '#8B5CF6' },
     { text: 'Tontines', icon: <Savings />, path: '/tontines', permission: 'tontines:read', color: '#14B8A6' },
     { text: 'Épargne', icon: <TrendingUp />, path: '/savings', color: '#84CC16' },
+    { text: 'Micro-Investissements', icon: <PieChart />, path: '/investments', color: '#9333EA' },
     { text: 'Réseau Social', icon: <Diversity3 />, path: '/circle', color: '#EC4899' },
     { text: 'Support', icon: <Support />, path: '/support', permission: 'tickets:update', color: '#EF4444' },
     { text: 'Rapports', icon: <Assessment />, path: '/reports', permission: 'reports:generate', color: '#6366F1' },

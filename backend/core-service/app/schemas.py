@@ -335,3 +335,48 @@ class ReferralResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# --- INVESTISSEMENTS ---
+
+class InvestmentProjectCreate(BaseModel):
+    title: str = Field(..., max_length=200)
+    category: str = Field(..., max_length=100)
+    annual_yield: float = Field(..., gt=0)
+    risk_level: str = Field(..., description="Faible, Modéré, Élevé")
+    funding_goal: float = Field(..., gt=0)
+    min_investment: float = Field(10.0, gt=0)
+    currency: str = Field("XOF", max_length=3)
+
+class InvestmentProjectResponse(BaseModel):
+    id: UUID4
+    title: str
+    category: str
+    annual_yield: float
+    risk_level: str
+    funding_goal: float
+    current_funding: float
+    min_investment: float
+    currency: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ClientInvestmentRequest(BaseModel):
+    amount: float = Field(..., gt=0)
+
+class ClientInvestmentResponse(BaseModel):
+    id: UUID4
+    project_id: UUID4
+    user_id: UUID4
+    invested_amount: float
+    expected_yield: Optional[float] = None
+    created_at: datetime
+    
+    # Détail projet
+    project_title: Optional[str] = None
+    project_annual_yield: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+

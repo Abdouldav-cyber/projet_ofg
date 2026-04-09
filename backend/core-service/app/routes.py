@@ -886,3 +886,62 @@ def list_friends(db: Session = Depends(get_db_with_tenant), token: str = Depends
             data['contact_last_name'] = contact.last_name
             results.append(data)
     return results
+
+# --- MODULE INVESTISSEMENTS ---
+
+@router.get("/client/investments/projects", tags=["Investissements"])
+def list_investment_projects(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    from app.models import InvestmentProject
+    projects = db.query(InvestmentProject).filter(InvestmentProject.status == "open").all()
+    return projects
+
+@router.post("/client/investments/projects/{project_id}/invest", tags=["Investissements"])
+def invest_in_project(project_id: UUID4, payload: dict, db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    """Investir dans un projet depuis son solde principal via API."""
+    from app.models import InvestmentProject, ClientInvestment, Account, AccountBalance
+    user_id = _get_user_id_from_token(token)
+    amount = float(payload.get("amount", 0))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Montant invalide")
+        
+    project = db.query(InvestmentProject).filter(InvestmentProject.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Projet non trouvé")
+        
+    # Validation du solde (simplifié pour le POC)
+    account = db.query(Account).filter(Account.user_id == user_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Pas de compte actif.")
+        
+    # Création de l'investissement
+    inv = ClientInvestment(
+        project_id=project.id,
+        user_id=user_id,
+        invested_amount=amount,
+        expected_yield=amount * float(project.annual_yield) / 100
+    )
+    db.add(inv)
+    
+    # Update funding
+    project.current_funding = float(project.current_funding) + amount
+    if float(project.current_funding) >= float(project.funding_goal):
+        project.status = "funded"
+        
+    db.commit()
+    db.refresh(inv)
+    return inv
+
+@router.get("/client/investments/my-portfolio", tags=["Investissements"])
+def my_portfolio(db: Session = Depends(get_db_with_tenant), token: str = Depends(oauth2_scheme)):
+    from app.models import ClientInvestment, InvestmentProject
+    user_id = _get_user_id_from_token(token)
+    investments = db.query(ClientInvestment).filter(ClientInvestment.user_id == user_id).all()
+    results = []
+    for inv in investments:
+        proj = db.query(InvestmentProject).filter(InvestmentProject.id == inv.project_id).first()
+        data = inv.__dict__.copy()
+        if proj:
+            data['project_title'] = proj.title
+            data['project_annual_yield'] = float(proj.annual_yield)
+        results.append(data)
+    return results

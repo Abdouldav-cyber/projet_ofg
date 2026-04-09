@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, TIMESTAMP, JSON, text, Integer, Date, ForeignKey, Boolean
+from sqlalchemy import Column, String, TIMESTAMP, JSON, text, Integer, Date, ForeignKey, Boolean, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
@@ -217,5 +217,34 @@ class Referral(Base):
     reward_amount = Column(JSON, nullable=False)
     currency = Column(String(3), server_default="XOF")
     status = Column(String(20), server_default="pending") # pending, paid
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class InvestmentProject(Base):
+    """Projets de micro-investissements (ex: Ferme Solaire)."""
+    __tablename__ = "investment_projects"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    title = Column(String(200), nullable=False)
+    category = Column(String(100), nullable=False)
+    annual_yield = Column(Numeric(5, 2), nullable=False)
+    risk_level = Column(String(20), nullable=False)
+    funding_goal = Column(Numeric(15, 2), nullable=False)
+    current_funding = Column(Numeric(15, 2), server_default="0")
+    min_investment = Column(Numeric(15, 2), server_default="10")
+    currency = Column(String(3), server_default="XOF")
+    status = Column(String(20), server_default="open") # open, funded, closed
+    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class ClientInvestment(Base):
+    """Lien entre un client et son financement dans un projet."""
+    __tablename__ = "client_investments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    project_id = Column(UUID(as_uuid=True), ForeignKey("investment_projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    invested_amount = Column(Numeric(15, 2), nullable=False)
+    expected_yield = Column(Numeric(15, 2))
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 

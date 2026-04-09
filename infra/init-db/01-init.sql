@@ -183,6 +183,29 @@ BEGIN
         is_read JSONB DEFAULT ''false'',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )', schema_name);
+
+    EXECUTE format('CREATE TABLE IF NOT EXISTS %I.investment_projects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title VARCHAR(200) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        annual_yield NUMERIC(5,2) NOT NULL,
+        risk_level VARCHAR(20) NOT NULL,
+        funding_goal NUMERIC(15,2) NOT NULL,
+        current_funding NUMERIC(15,2) DEFAULT 0,
+        min_investment NUMERIC(15,2) DEFAULT 10,
+        currency VARCHAR(3) DEFAULT ''XOF'',
+        status VARCHAR(20) DEFAULT ''open'',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )', schema_name);
+
+    EXECUTE format('CREATE TABLE IF NOT EXISTS %I.client_investments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL,
+        user_id UUID NOT NULL,
+        invested_amount NUMERIC(15,2) NOT NULL,
+        expected_yield NUMERIC(15,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )', schema_name);
 END;
 $$ LANGUAGE plpgsql;
 

@@ -594,6 +594,29 @@ class ApiService {
     })
     return response.data
   }
+
+  // --- INVESTISSEMENTS ---
+  async getInvestmentProjects() {
+    const response = await this.api.get('/api/v1/admin/investments/projects')
+    return response.data
+  }
+
+  async createInvestmentProject(data: {
+    title: string;
+    category: string;
+    annual_yield: number;
+    risk_level: string;
+    funding_goal: number;
+    min_investment: number;
+  }) {
+    const response = await this.api.post('/api/v1/admin/investments/projects', data)
+    return response.data
+  }
+
+  async deleteInvestmentProject(id: string) {
+    const response = await this.api.delete(`/api/v1/admin/investments/projects/${id}`)
+    return response.data
+  }
 }
 export const apiService = new ApiService()
 export default apiService

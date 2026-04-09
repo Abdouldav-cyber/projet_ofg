@@ -978,7 +978,7 @@ async def delete_ticket(
 
 # ==================== PROFILE & SETTINGS ====================
 
-@router.patch("/auth/profile", response_model=UserResponse, tags=["Profile"])
+@router.patch("/admin/auth/profile", response_model=UserResponse, tags=["Profile Admin"])
 async def update_profile(
     profile_data: ProfileUpdate,
     db: Session = Depends(get_db_with_tenant),
@@ -999,7 +999,7 @@ async def update_profile(
     return user
 
 
-@router.post("/auth/change-password", tags=["Profile"])
+@router.post("/admin/auth/change-password", tags=["Profile Admin"])
 async def change_password(
     password_data: PasswordChange,
     db: Session = Depends(get_db_with_tenant),
@@ -1095,7 +1095,7 @@ async def delete_tenant(
 
 # ==================== TRANSACTIONS LIST (Admin) ====================
 
-@router.get("/transactions", tags=["Transactions"])
+@router.get("/admin/transactions", tags=["Transactions Admin"])
 async def list_transactions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, le=100),
@@ -1128,7 +1128,7 @@ async def list_transactions(
     }
 
 
-@router.get("/transactions/{transaction_id}", tags=["Transactions"])
+@router.get("/admin/transactions/{transaction_id}", tags=["Transactions Admin"])
 async def get_transaction(
     transaction_id: UUID4,
     db: Session = Depends(get_db_with_tenant),
@@ -1367,7 +1367,7 @@ async def get_country_analytics(
 
 # ==================== TONTINES (Admin) ====================
 
-@router.get("/admin/tontines", tags=["Tontines"])
+@router.get("/admin/tontines", tags=["Tontines Admin"])
 async def list_tontines_admin(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, le=100),
@@ -2112,3 +2112,49 @@ async def list_all_friendships(
             data['contact_last_name'] = contact.last_name
             results.append(data)
     return results
+
+# ==================== INVESTISSEMENTS ADMIN API ====================
+
+@router.get("/admin/investments/projects", tags=["Super Admin"])
+async def admin_list_investment_projects(
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    from app.models import InvestmentProject
+    projects = db.query(InvestmentProject).order_by(InvestmentProject.created_at.desc()).all()
+    return projects
+
+@router.post("/admin/investments/projects", tags=["Super Admin"])
+async def admin_create_investment_project(
+    project_data: dict,
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    from app.models import InvestmentProject
+    from app.audit import AuditLog
+    new_project = InvestmentProject(**project_data)
+    db.add(new_project)
+    
+    db.add(AuditLog(
+        user_id=current_user.user_id,
+        action="CREATE_INVESTMENT_PROJECT",
+        resource_type="investments",
+        metadata_col=project_data
+    ))
+    db.commit()
+    db.refresh(new_project)
+    return new_project
+
+@router.delete("/admin/investments/projects/{project_id}", tags=["Super Admin"])
+async def admin_delete_investment_project(
+    project_id: UUID4,
+    db: Session = Depends(get_db_with_tenant),
+    current_user: CurrentUser = RequireAdmin
+):
+    from app.models import InvestmentProject
+    project = db.query(InvestmentProject).filter(InvestmentProject.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Projet non trouve")
+    db.delete(project)
+    db.commit()
+    return {"message": "Projet supprime avec succes"}
