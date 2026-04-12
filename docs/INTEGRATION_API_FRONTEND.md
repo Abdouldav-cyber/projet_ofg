@@ -198,6 +198,43 @@ export const transferMoney = async (fromAccount, toAccount, amount) => {
 };
 ```
 
+### E. Gestion du Support Client (Ticketing & L2)
+Le module Support vu dans le Swagger se divise en deux usages stricts :
+
+**1. Pour les Développeurs App Client (Web B2C / Mobile) :**
+L'application finale de l'utilisateur ne doit consommer que les routes de base pour soumettre et consulter ses propres réclamations. L'API filtre automatiquement pour ne renvoyer que les données de l'utilisateur connecté via le token JWT.
+```typescript
+// Récupérer la liste des tickets de l'utilisateur
+export const getMyTickets = async () => {
+  const response = await api.get('/support/tickets');
+  return response.data;
+};
+
+// Ouvrir une nouvelle réclamation
+export const createTicket = async (subject, message) => {
+  const response = await api.post('/support/tickets', {
+    subject: subject,
+    message: message
+  });
+  return response.data;
+};
+```
+
+**2. Pour les Développeurs Dashboard Admin (Support L2 & Agents) :**
+Les autres endpoints, et **particulièrement ceux de la section "Support L2"** (`freeze`, `unfreeze`, `refund`), sont réservés au back-office d'administration. Ils nécessitent des rôles élevés (RBAC) pour geler un compte compromis ou rembourser une transaction bloquée.
+**Ne branchez PAS ces requêtes côté mobile/client.**
+```typescript
+// [DASHBOARD SEULEMENT] Geler un compte suite à suspicion de fraude
+export const freezeUserAccount = async (accountId) => {
+  try {
+    const response = await api.post(`/support/accounts/${accountId}/freeze`);
+    alert("Compte gelé avec succès.");
+  } catch(e) {
+    alert("Droit insuffisant ou compte introuvable.");
+  }
+};
+```
+
 ---
 
 ## 5. Bonnes Pratiques UI/UX
