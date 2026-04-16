@@ -256,118 +256,147 @@ def change_password(pwd_data: PasswordChange, token: str = Depends(oauth2_scheme
 # --- MULTI-FACTOR AUTHENTICATION (MFA) ---
 
 @router.post("/auth/mfa/enable", tags=["Authentification"], summary="Activer MFA/2FA")
-def enable_mfa(db: Session = Depends(get_db_with_tenant)):
+def enable_mfa(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
     """
     Génère un secret TOTP et un QR code pour activer le MFA
     Nécessite authentification
     """
     from app.mfa import MFAService
-    from app.rbac import get_current_user
-    from fastapi import Request
+    from app.encryption import encrypt_field
+    from jose import jwt, JWTError
+    from app.config import settings
 
-    # TODO: Récupérer current_user depuis token JWT
-    # Pour l'instant, simulation
-    user_id = "00000000-0000-0000-0000-000000000000"
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
+            
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
 
-    # Générer secret TOTP
-    secret = MFAService.generate_totp_secret()
+        # Générer secret TOTP
+        secret = MFAService.generate_totp_secret()
 
-    # Générer URI et QR code
-    uri = MFAService.get_totp_uri(secret, email="user@djembe.com")
-    qr_code_base64 = MFAService.generate_qr_code_base64(uri)
+        # Générer URI et QR code
+        uri = MFAService.get_totp_uri(secret, email=user.email)
+        qr_code_base64 = MFAService.generate_qr_code_base64(uri)
 
-    # Sauvegarder le secret (chiffré) en DB
-    user = db.query(User).filter(User.id == user_id).first()
-    if user:
-        from app.encryption import encrypt_field
+        # Sauvegarder le secret (chiffré) en DB
         user.mfa_secret = encrypt_field(secret)
         db.commit()
 
-    return {
-        "secret": secret,
-        "qr_code": qr_code_base64,
-        "uri": uri,
-        "message": "Scannez le QR code avec Google Authenticator puis vérifiez avec /auth/mfa/verify"
-    }
+        return {
+            "secret": secret,
+            "qr_code": qr_code_base64,
+            "uri": uri,
+            "message": "Scannez le QR code avec Google Authenticator puis vérifiez avec /auth/mfa/verify"
+        }
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token invalide")
 
 
 @router.post("/auth/mfa/verify", tags=["Authentification"], summary="Vérifier code MFA")
-def verify_mfa(code: str, db: Session = Depends(get_db_with_tenant)):
+def verify_mfa(code: str, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
     """
     Vérifie un code TOTP pour activer le MFA
     """
     from app.mfa import MFAService
     from app.encryption import decrypt_field
+    from jose import jwt, JWTError
+    from app.config import settings
 
-    # TODO: Récupérer current_user depuis token
-    user_id = "00000000-0000-0000-0000-000000000000"
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user or not user.mfa_secret:
-        raise HTTPException(status_code=400, detail="MFA non initialisé")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not user.mfa_secret:
+            raise HTTPException(status_code=400, detail="MFA non initialisé")
 
-    # Déchiffrer le secret
-    secret = decrypt_field(user.mfa_secret)
+        # Déchiffrer le secret
+        secret = decrypt_field(user.mfa_secret)
 
-    # Vérifier le code
-    is_valid = MFAService.verify_totp_code(secret, code)
+        # Vérifier le code
+        is_valid = MFAService.verify_totp_code(secret, code)
 
-    if is_valid:
-        # Activer MFA
-        user.mfa_enabled = True
-        db.commit()
+        if is_valid:
+            # Activer MFA
+            user.mfa_enabled = True
+            db.commit()
 
-        # Audit log
-        db.add(AuditLog(user_id=user.id, action="MFA_ENABLED", resource_type="users", resource_id=str(user.id)))
-        db.commit()
+            # Audit log
+            db.add(AuditLog(user_id=user.id, action="MFA_ENABLED", resource_type="users", resource_id=str(user.id)))
+            db.commit()
 
-        return {"status": "success", "message": "MFA activé avec succès"}
-    else:
-        raise HTTPException(status_code=400, detail="Code invalide")
+            return {"status": "success", "message": "MFA activé avec succès"}
+        else:
+            raise HTTPException(status_code=400, detail="Code invalide")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token invalide")
 
 
 @router.post("/auth/mfa/disable", tags=["Authentification"], summary="Désactiver MFA")
-def disable_mfa(password: str, db: Session = Depends(get_db_with_tenant)):
+def disable_mfa(password: str, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
     """
     Désactive le MFA (nécessite confirmation par mot de passe)
     """
-    # TODO: Récupérer current_user
-    user_id = "00000000-0000-0000-0000-000000000000"
+    from jose import jwt, JWTError
+    from app.config import settings
+    
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
 
-    # Vérifier mot de passe
-    if not verify_password(password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+        # Vérifier mot de passe
+        if not verify_password(password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Mot de passe incorrect")
 
-    # Désactiver MFA
-    user.mfa_enabled = False
-    user.mfa_secret = None
-    db.commit()
+        # Désactiver MFA
+        user.mfa_enabled = False
+        user.mfa_secret = None
+        db.commit()
 
-    # Audit log
-    db.add(AuditLog(user_id=user.id, action="MFA_DISABLED", resource_type="users", resource_id=str(user.id)))
-    db.commit()
+        # Audit log
+        db.add(AuditLog(user_id=user.id, action="MFA_DISABLED", resource_type="users", resource_id=str(user.id)))
+        db.commit()
 
-    return {"status": "success", "message": "MFA désactivé"}
+        return {"status": "success", "message": "MFA désactivé"}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token invalide")
 
 
 @router.get("/auth/mfa/status", tags=["Authentification"], summary="Statut MFA")
-def mfa_status(db: Session = Depends(get_db_with_tenant)):
+def mfa_status(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db_with_tenant)):
     """Vérifie si le MFA est activé pour l'utilisateur"""
-    # TODO: Récupérer current_user
-    user_id = "00000000-0000-0000-0000-000000000000"
+    from jose import jwt, JWTError
+    from app.config import settings
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token invalide")
 
-    return {
-        "mfa_enabled": bool(user.mfa_enabled),
-        "mfa_configured": user.mfa_secret is not None
-    }
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+
+        return {
+            "mfa_enabled": bool(user.mfa_enabled),
+            "mfa_configured": user.mfa_secret is not None
+        }
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token invalide")
 
 
 # --- SERVICES BANCAIRES ---
@@ -375,6 +404,9 @@ def mfa_status(db: Session = Depends(get_db_with_tenant)):
 @router.post("/accounts", tags=["Services Bancaires"], summary="Ouverture de compte")
 def create_account(account: AccountCreate, db: Session = Depends(get_db_with_tenant)):
     """Crée un nouveau compte bancaire pour l'utilisateur."""
+    import random
+    import string
+
     # Utiliser le user_id fourni
     user_id = account.user_id
     if not user_id:
@@ -385,10 +417,15 @@ def create_account(account: AccountCreate, db: Session = Depends(get_db_with_ten
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur non trouve")
 
+    # Génération d'un IBAN fictif (Format UEMOA simplifié : Pays + 2 chiffres de contrôle + 24 chiffres)
+    bban = ''.join(random.choices(string.digits, k=24))
+    generated_iban = f"SN89{bban}" # Par défaut SN, évolutif selon le tenant
+
     new_account = Account(
         user_id=user_id,
         account_type=account.account_type,
-        status="active"
+        status="active",
+        iban=generated_iban
     )
     db.add(new_account)
     db.flush()
