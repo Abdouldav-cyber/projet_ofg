@@ -33,11 +33,14 @@ class User(Base):
     mfa_secret = Column(String(500))
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
+from sqlalchemy.orm import relationship
+
 class Account(Base):
     """Gestion des comptes bancaires multi-types."""
     __tablename__ = "accounts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    balances = relationship("AccountBalance", backref="account", lazy="joined")
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     account_type = Column(String(50), nullable=False)  # personal, business, savings, tontine, multi_currency
     iban = Column(String(34), unique=True)  # IBAN format local adapté

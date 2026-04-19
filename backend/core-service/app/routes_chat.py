@@ -206,7 +206,7 @@ async def get_unread_count(
     count = db.query(ChatMessage).filter(
         ChatMessage.ticket_id == str(ticket_id),
         ChatMessage.sender_id != current_user.user_id,
-        ChatMessage.is_read == text("'false'")
+        text("is_read::text = 'false'")
     ).count()
 
     return {"ticket_id": str(ticket_id), "unread_count": count}
@@ -224,7 +224,7 @@ async def get_total_unread(
     """
     query = db.query(ChatMessage).filter(
         ChatMessage.sender_id != current_user.user_id,
-        ChatMessage.is_read == text("'false'")
+        text("is_read::text = 'false'")
     )
 
     if current_user.role == "customer":

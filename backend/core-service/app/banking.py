@@ -97,7 +97,7 @@ class TransactionSaga:
             # Calculer total des transactions du jour
             today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
             today_total = self.db.query(
-                func.sum(text("CAST(amount AS NUMERIC)"))
+                func.sum(text("CAST(amount#>>'{}' AS NUMERIC)"))
             ).filter(
                 Transaction.from_account_id == self.from_account_id,
                 Transaction.currency == self.currency,
@@ -464,7 +464,7 @@ class TransactionEngine:
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
         total = db.query(
-            func.sum(text("CAST(amount AS NUMERIC)"))
+            func.sum(text("CAST(amount#>>'{}' AS NUMERIC)"))
         ).filter(
             Transaction.from_account_id == account_id,
             Transaction.currency == currency,
@@ -486,7 +486,7 @@ class TransactionEngine:
         month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         total = db.query(
-            func.sum(text("CAST(amount AS NUMERIC)"))
+            func.sum(text("CAST(amount#>>'{}' AS NUMERIC)"))
         ).filter(
             Transaction.from_account_id == account_id,
             Transaction.currency == currency,

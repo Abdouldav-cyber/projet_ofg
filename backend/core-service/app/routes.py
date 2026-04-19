@@ -276,12 +276,20 @@ def enable_mfa(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db
         if not user:
             raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
 
-        # Générer secret TOTP
-        secret = MFAService.generate_totp_secret()
+        # Générer secret TOTP via PyOTP
+        import pyotp
+        import qrcode
+        from io import BytesIO
+        import base64
+
+        secret = pyotp.random_base32()
 
         # Générer URI et QR code
-        uri = MFAService.get_totp_uri(secret, email=user.email)
-        qr_code_base64 = MFAService.generate_qr_code_base64(uri)
+        uri = pyotp.totp.TOTP(secret).provisioning_uri(name=f"User-{user.id}", issuer_name="Djembe Bank")
+        img = qrcode.make(uri)
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        qr_code_base64 = f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
 
         # Sauvegarder le secret (chiffré) en DB
         user.mfa_secret = encrypt_field(secret)
@@ -320,8 +328,10 @@ def verify_mfa(code: str, token: str = Depends(oauth2_scheme), db: Session = Dep
         # Déchiffrer le secret
         secret = decrypt_field(user.mfa_secret)
 
-        # Vérifier le code
-        is_valid = MFAService.verify_totp_code(secret, code)
+        # Vérifier le code via pyotp
+        import pyotp
+        totp = pyotp.totp.TOTP(secret)
+        is_valid = totp.verify(code, valid_window=2)
 
         if is_valid:
             # Activer MFA
@@ -419,7 +429,12 @@ def create_account(account: AccountCreate, db: Session = Depends(get_db_with_ten
 
     # Génération d'un IBAN fictif (Format UEMOA simplifié : Pays + 2 chiffres de contrôle + 24 chiffres)
     bban = ''.join(random.choices(string.digits, k=24))
-    generated_iban = f"SN89{bban}" # Par défaut SN, évolutif selon le tenant
+    
+    # Récupération dynamique du code tenant actuel
+    current_schema = db.execute(text("SHOW search_path")).fetchone()[0].split(',')[0].strip()
+    tenant_prefix = current_schema.replace('tenant_', '').upper() if 'tenant_' in current_schema else "SN"
+    
+    generated_iban = f"{tenant_prefix}89{bban}"
 
     new_account = Account(
         user_id=user_id,
